@@ -2676,9 +2676,27 @@ function renderStudents(){
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}신규</span><span class="a inc">${last?last.entered+'명':'-'}</span></div>
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}퇴소</span><span class="a exp">${last?last.left+'명':'-'}</span></div>
       <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 교습비 납부 학생(잠깐 밀린 달 포함) · 신규 = 전달 재원에 없다가 이번 달 납부 · 퇴소 = 3개월 연속 납부 없으면 납부 끊긴 달로 기록, 시트에 퇴소로 적힌 학생은 바로</div>
-    </div>`;
+    </div>
+    ${last?buildGradeDonut(last.ym):''}`;
   const chart = el('stuEnrollChart');
   if(chart) chart.addEventListener('click', ()=> goStudentChartDetail());
+}
+
+function buildGradeDonut(ym){
+  if(!ym) return '';
+  const meta={}; (DATA.students||[]).forEach(x=>{ if(x&&x.name) meta[x.name]=x; });
+  const order=['초등','중등','고등','기타'], colors={'초등':'#4ade80','중등':'#60a5fa','고등':'#f472b6','기타':'#9ca3af'};
+  const cnt={초등:0,중등:0,고등:0,기타:0};
+  rosterNamesFor(ym).forEach(n=>{ const st=meta[n]; let g='기타'; if(st){ const e=effectiveStudentGrade(st); if(cnt[e.g1]!=null) g=e.g1; } cnt[g]++; });
+  const total=order.reduce((a,k)=>a+cnt[k],0); if(!total) return '';
+  const R=54, C=2*Math.PI*R; let off=0;
+  const arcs=order.filter(k=>cnt[k]).map(k=>{ const len=cnt[k]/total*C; const a=`<circle r="${R}" cx="70" cy="70" fill="none" stroke="${colors[k]}" stroke-width="22" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`; off+=len; return a; }).join('');
+  const legend=order.filter(k=>cnt[k]).map(k=>`<div class="metric"><span class="n"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${colors[k]};margin-right:6px"></i>${k}</span><span class="a">${cnt[k]}명 · ${Math.round(cnt[k]/total*100)}%</span></div>`).join('');
+  return `<div class="card"><h2 style="margin-bottom:8px">${escHtml(shortYm(ym))}월 재원 학년 비율</h2>
+    <div style="display:flex;align-items:center;gap:14px">
+      <svg viewBox="0 0 140 140" width="130" height="130" style="flex:none">${arcs}<text x="70" y="66" text-anchor="middle" fill="currentColor" font-size="13" opacity=".7">재원</text><text x="70" y="86" text-anchor="middle" fill="currentColor" font-size="20" font-weight="700">${total}명</text></svg>
+      <div style="flex:1">${legend}</div>
+    </div></div>`;
 }
 
 function escHtml(s){
