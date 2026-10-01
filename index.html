@@ -438,7 +438,6 @@ let state = { tab:'sales', month:null, view:'list', salesView:'list', sujiView:'
 const EX_KEY = 'jangbu_unpaid_excluded_v1';
 function loadExcluded(){
   let m={};
-  try { m = JSON.parse(localStorage.getItem(EX_KEY) || '{}') || {}; } catch(e){ m={}; }
   ((typeof DATA!=='undefined' && DATA.restMonths)||[]).forEach(x=>{ m[x.ym+'|'+x.name] = { ym:x.ym, name:x.name, sheet:true }; });
   return m;
 }
@@ -1463,7 +1462,6 @@ function renderFee(){
                 <div class="m">${s.grade||''} · 예정 ${won(s.expected)}</div>
               </div>
               <div class="a" style="color:var(--warn);margin-right:8px">미납</div>
-              <button type="button" class="xbtn" data-exclude="${s.name}" data-ym="${g.ym}">제외</button>
             </div>`).join('')}
         </div>
       </div>`).join('') : '<div class="card"><div class="empty">미납 없음</div></div>';
@@ -1517,7 +1515,7 @@ function renderFee(){
       ${state.showExcluded && exList.length ? `<div class="card" style="padding:6px 14px">${exList.map(x=>`
         <div class="line">
           <div><div>${x.name}</div><div class="m">${x.sheet?'시트 «휴원 기록»에 휴원으로 적힘':'미납에서 제외됨 (이 기기에만)'}</div></div>
-          ${x.sheet?'':`<button type="button" class="xbtn" data-restore="${x.name}">되돌리기</button>`}
+
         </div>`).join('')}</div>` : ''}
       <input class="search" id="qFee" placeholder="학생·학년 검색" value="${(state.q||'').replace(/"/g,'&quot;')}"/>
       <div class="card" style="padding:6px 14px">
@@ -1528,7 +1526,6 @@ function renderFee(){
               <div class="m">${s.grade||''} · 예정 ${won(s.expected)}</div>
             </div>
             <div class="a" style="color:var(--warn);margin-right:8px">미납</div>
-            <button type="button" class="xbtn" data-exclude="${s.name}" data-ym="${state.feeMonth}">제외</button>
           </div>` : `
           <div class="line">
             <div><div>${s.name}</div><div class="m">${s.grade||''}${s.day? ' · '+(s.day.slice(5)) : ''}${s.expected? ' · 명단 '+won(s.expected):''}</div></div>
