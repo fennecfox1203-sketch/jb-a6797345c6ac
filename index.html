@@ -2265,7 +2265,7 @@ function buildStudentEnrollChart(opts){
     const enrolled = rosterNamesFor(ym).size;
     const prev = flowMonthPrev(ym);
     const left = prev ? leaveNamesForMonth(ym, prev).size : 0;
-    const entered = 0; /* 재원·퇴소만 표시 */
+    const entered = prev ? enterNamesForMonth(ym, prev).size : 0; /* 신규 */
     return { ym, enrolled, left, entered };
   });
   const n = points.length;
@@ -2343,7 +2343,7 @@ function buildStudentEnrollBarChart(opts){
     const enrolled = rosterNamesFor(ym).size;
     const prev = flowMonthPrev(ym);
     const left = prev ? leaveNamesForMonth(ym, prev).size : 0;
-    const entered = 0; /* 재원·퇴소만 표시 */
+    const entered = prev ? enterNamesForMonth(ym, prev).size : 0; /* 신규 */
     return { ym, enrolled, left, entered };
   });
   const n = Math.max(points.length, 1);
@@ -2409,8 +2409,8 @@ function buildStudentEnrollBarChart(opts){
       const y = yAt(p.entered);
       const h = Math.max(3, y0 - y);
       const x = cx - pairW / 2;
-      parts.push(`<rect class="stu-flow-hit" data-ym="${p.ym}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="#fbbf24" opacity="1" style="cursor:pointer"/>`);
-      parts.push(`<text x="${(x + barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" fill="#fbbf24" font-size="${fFs}" font-weight="700" stroke="#0b0f14" stroke-width="2.5" paint-order="stroke" style="paint-order:stroke fill;pointer-events:none">${p.entered}</text>`);
+      parts.push(`<rect class="stu-flow-hit" data-ym="${p.ym}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="var(--inc)" opacity="1" style="cursor:pointer"/>`);
+      parts.push(`<text x="${(x + barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" fill="var(--inc)" font-size="${fFs}" font-weight="700" stroke="#0b0f14" stroke-width="2.5" paint-order="stroke" style="paint-order:stroke fill;pointer-events:none">${p.entered}</text>`);
     }
     if(p.left){
       const y = yAt(p.left);
@@ -2526,9 +2526,10 @@ function renderStudentChartDetail(){
     return `<div class="line stu-flow-row" data-ym="${p.ym}" style="cursor:pointer">
       <div>
         <div>${escHtml(shortYm(p.ym))}월</div>
-        <div class="m">재원 ${p.enrolled} · 퇴소 ${p.left}</div>
+        <div class="m">재원 ${p.enrolled} · 신규 ${p.entered} · 퇴소 ${p.left}</div>
       </div>
       <div class="a" style="display:flex;gap:10px;align-items:center">
+        <span style="color:var(--inc);font-weight:700">+${p.entered}</span>
         <span style="color:var(--exp);font-weight:700">-${p.left}</span>
       </div>
     </div>`;
@@ -2537,9 +2538,10 @@ function renderStudentChartDetail(){
   p.innerHTML = `
     <button class="back" id="backStuChart">← 학생</button>
     <div class="card">
-      <h2 style="margin:0">재원·퇴소 상세</h2>
-      <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">교습비 실제 납부 기준 · 전월까지 · 막대·행 누르면 그달 퇴소 목록</div>
+      <h2 style="margin:0">재원·신규·퇴소 상세</h2>
+      <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">교습비 실제 납부 기준 · 전월까지 · 막대·행 누르면 그달 신규·퇴소 목록</div>
       <div class="metric" style="margin-top:8px"><span class="n">최근 재원</span><span class="a fee">${last ? last.enrolled+'명' : '-'}</span></div>
+      <div class="metric"><span class="n">기간 신규 합</span><span class="a inc">${totEnter}명</span></div>
       <div class="metric"><span class="n">기간 퇴소 합</span><span class="a exp">${totLeave}명</span></div>
     </div>
     <div class="chart-wrap bars" id="stuEnrollDetailChart">
@@ -2547,6 +2549,7 @@ function renderStudentChartDetail(){
       <div class="chart-scroll" id="stuEnrollScroll">${chart.svg}</div>
       <div class="chart-legend">
         <span><i style="background:var(--fee)"></i>재원(최근 3개월 안에 납부)</span>
+        <span><i style="background:var(--inc)"></i>신규(이번 달 새로 납부)</span>
         <span><i style="background:var(--exp)"></i>퇴소(3개월 연속 납부 없음)</span>
       </div>
     </div>
@@ -2586,7 +2589,7 @@ function renderStudentFlow(){
   const ym = state.stuFlowYm;
   const prevYm = flowMonthPrev(ym);
   const left = prevYm ? [...leaveNamesForMonth(ym, prevYm)] : [];
-  const entered = [...unpaidNamesFor(ym)];
+  const entered = prevYm ? [...enterNamesForMonth(ym, prevYm)] : [];
   left.sort((a,b)=>a.localeCompare(b,'ko'));
   entered.sort((a,b)=>a.localeCompare(b,'ko'));
 
@@ -2596,8 +2599,8 @@ function renderStudentFlow(){
     const meta = s
       ? `${escHtml(eg.label||s.grade||'-')} · ${escHtml(s.status||'')}`
       : '명단에 없음 · 납부 기록 기준';
-    const color = kind==='leave' ? 'var(--exp)' : '#fbbf24';
-    const tag = kind==='leave' ? '퇴소' : '미납';
+    const color = kind==='leave' ? 'var(--exp)' : 'var(--inc)';
+    const tag = kind==='leave' ? '퇴소' : '신규';
     return `<div class="stu-card" data-name="${escHtml(name)}" style="cursor:${s?'pointer':'default'}">
       <div class="top"><span class="name">${escHtml(name)}</span><span class="badge" style="color:${color};background:transparent;border:1px solid ${color}">${tag}</span></div>
       <div class="meta"><span>${meta}</span></div>
@@ -2607,14 +2610,17 @@ function renderStudentFlow(){
   p.innerHTML = `
     <button class="back" id="backStuFlow">${state.stuView==='chartDetail'?'← 그래프 상세':'← 학생'}</button>
     <div class="card">
-      <h2 style="margin:0">${escHtml(shortYm(ym))}월 퇴소</h2>
+      <h2 style="margin:0">${escHtml(shortYm(ym))}월 신규·퇴소</h2>
       <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">교습비 실제 납부 기준${prevYm? ' · 전월 '+escHtml(shortYm(prevYm)): ' · 전월 없음'}</div>
-      <div class="metric" style="margin-top:8px"><span class="n">퇴소</span><span class="a exp">${left.length}명</span></div>
+      <div class="metric" style="margin-top:8px"><span class="n">신규</span><span class="a inc">${entered.length}명</span></div>
+      <div class="metric"><span class="n">퇴소</span><span class="a exp">${left.length}명</span></div>
     </div>
     <div class="seg" id="segStuFlow">${yms.slice().reverse().map(x=>`<button data-ym="${x}" class="${x===ym?'on':''}">${shortYm(x)}</button>`).join('')}</div>
+    <div class="stu-sec el"><span class="t" style="color:var(--inc)">신규</span><span class="n">${entered.length}명</span></div>
+    ${entered.length ? entered.map(n=>personRow(n,'enter')).join('') : '<div class="empty" style="padding:16px 10px">이달 신규 없음</div>'}
     <div class="stu-sec hi"><span class="t" style="color:var(--exp)">퇴소</span><span class="n">${left.length}명</span></div>
     ${left.length ? left.map(n=>personRow(n,'leave')).join('') : '<div class="empty" style="padding:16px 10px">이달 퇴소 없음</div>'}
-    <div class="bank-hint" style="margin-top:10px">퇴소: 3개월 연속 교습비 납부 없음 · 시트 «학생 명단»에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>`;
+    <div class="bank-hint" style="margin-top:10px">신규: 전달 재원에 없다가 이번 달 납부 · 퇴소: 3개월 연속 교습비 납부 없음 · 시트 «학생 명단»에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>`;
 
   el('backStuFlow').onclick=()=>{ state.stuFlowYm=null; render(); };
   el('segStuFlow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.stuFlowYm=b.dataset.ym; render(); });
@@ -2638,13 +2644,15 @@ function renderStudents(){
       <div class="chart-scroll" id="stuEnrollScroll">${stuChart.svg}</div>
       <div class="chart-legend">
         <span><i style="background:var(--fee)"></i>재원</span>
+        <span><i style="background:var(--inc)"></i>신규</span>
         <span><i style="background:var(--exp)"></i>퇴소</span>
       </div>
     </div>
     <div class="card">
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}재원</span><span class="a fee">${last?last.enrolled+'명':'-'}</span></div>
+      <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}신규</span><span class="a inc">${last?last.entered+'명':'-'}</span></div>
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}퇴소</span><span class="a exp">${last?last.left+'명':'-'}</span></div>
-      <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 최근 3개월 안에 교습비 낸 학생 · 퇴소 = 3개월 연속 납부 없음, 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>
+      <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 최근 3개월 안에 교습비 낸 학생 · 신규 = 전달 재원에 없다가 이번 달 납부 · 퇴소 = 3개월 연속 납부 없음, 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>
     </div>`;
   const chart = el('stuEnrollChart');
   if(chart) chart.addEventListener('click', ()=> goStudentChartDetail());
