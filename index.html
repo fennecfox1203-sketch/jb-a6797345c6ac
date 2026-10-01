@@ -507,7 +507,8 @@ function excludedForMonth(ym){
 function parseRestRows(rows){
   const out=[], seen=new Set();
   (rows||[]).forEach(r=>{
-    const name=String(r[0]||'').trim(), mm=String(r[1]||'').trim().match(/^(20\d\d)\s*[-.\/년]\s*(\d{1,2})/);
+    const re=/^(20\d\d)\s*[-.\/년]\s*(\d{1,2})/, c0=String(r[0]||'').trim(), c1=String(r[1]||'').trim();
+    const sw=re.test(c0) && !re.test(c1), name=sw?c1:c0, mm=(sw?c0:c1).match(re); /* 이름·월 순서 상관없이 */
     if(!name || !mm || /\d/.test(name) || name.length>10) return;
     const ym=mm[1]+'-'+String(+mm[2]).padStart(2,'0'), k=ym+'|'+name;
     if(!seen.has(k)){ seen.add(k); out.push({name, ym}); }
