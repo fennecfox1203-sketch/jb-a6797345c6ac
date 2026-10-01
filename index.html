@@ -3114,7 +3114,19 @@ function _gvizRows(resp){
   return (t.rows||[]).map(r=>{ const out=[]; for(let i=0;i<nc;i++){ const c=(r.c||[])[i]; out.push(c==null?'':(c.f!=null?String(c.f):(c.v==null?'':String(c.v)))); } return out; });
 }
 let _gvizSeq=0;
-function fetchSheetRows(name){
+/* 숨긴 행도 읽기: gviz는 숨긴 행을 빼므로 CSV 내보내기(gid)를 먼저 씀 */
+const SHEET_GIDS = {'학생 명단':'0','통장거래내역':'1723542002','휴원 기록':'739493373'};
+async function fetchSheetRows(name){
+  const gid = SHEET_GIDS[name];
+  if(gid!=null){
+    try{
+      const r = await fetch('https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/export?format=csv&gid='+gid+'&t='+Date.now(), {cache:'no-store'});
+      if(r.ok){ const t = await r.text(); if(t && !/^\s*<(!doctype|html)/i.test(t)) return parseCsv(t); }
+    }catch(e){}
+  }
+  return fetchSheetRowsGviz(name);
+}
+function fetchSheetRowsGviz(name){
   // 스크립트 태그 방식: 파일로 열어도(file://) 막히지 않음
   return new Promise((resolve,reject)=>{
     const cb='__jangbuCb'+(++_gvizSeq)+'_'+Date.now();
