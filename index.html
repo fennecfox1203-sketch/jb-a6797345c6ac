@@ -1514,7 +1514,7 @@ function renderFee(){
       ${exList.length ? `<div class="excluded-bar"><span>이 달 제외 ${exList.length}명</span><button type="button" id="toggleEx">${state.showExcluded?'숨기기':'목록 보기'}</button></div>` : ''}
       ${state.showExcluded && exList.length ? `<div class="card" style="padding:6px 14px">${exList.map(x=>`
         <div class="line">
-          <div><div>${x.name}</div><div class="m">${x.sheet?'시트 «휴원 기록»에 휴원으로 적힘':'미납에서 제외됨 (이 기기에만)'}</div></div>
+          <div><div>${x.name}</div><div class="m">${x.sheet?'시트 «휴원 기록»에 적힘 · 퇴소로 처리':'미납에서 제외됨 (이 기기에만)'}</div></div>
 
         </div>`).join('')}</div>` : ''}
       <input class="search" id="qFee" placeholder="학생·학년 검색" value="${(state.q||'').replace(/"/g,'&quot;')}"/>
@@ -2224,7 +2224,7 @@ function rosterNamesFor(ym){
   const key = DATA.syncedAt+'|'+yms.length;
   if(_rosterKey!==key){
     _rosterKey=key; _rosterCache={};
-    const paid = yms.map(m=>{ const ss=paidSetFor(m); restSetFor(m).forEach(n=>ss.add(n)); return ss; }), gone = sheetLeftSet(), names = new Set();
+    const rest = yms.map(restSetFor), paid = yms.map(paidSetFor), gone = sheetLeftSet(), names = new Set();
     const pv = prevYmSeoul(); let lastIdx = yms.length-1; while(lastIdx>0 && yms[lastIdx]>pv) lastIdx--;
     paid.forEach(ss=>ss.forEach(n=>names.add(n)));
     yms.forEach(m=>_rosterCache[m]=new Set());
@@ -2232,6 +2232,7 @@ function rosterNamesFor(ym){
       const pi = yms.map((m,k)=>paid[k].has(n)?k:-1).filter(k=>k>=0);
       yms.forEach((m,k)=>{
         if(paid[k].has(n)){ _rosterCache[m].add(n); return; }
+        if(rest[k].has(n)) return; /* «휴원 기록» 달 = 퇴소 처리 */
         const last = pi.filter(x=>x<k).pop(); if(last==null) return;
         if(gone.has(n)) return;
         const next = pi.find(x=>x>k);
