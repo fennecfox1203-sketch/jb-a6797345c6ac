@@ -437,8 +437,10 @@ function bindBankUpload(){
 let state = { tab:'sales', month:null, view:'list', salesView:'list', sujiView:'list', feeMonth:null, bankMonth:null, bankCat:'', dirFilt:'all', feeFilt:'unpaid', stuFilt:'재학', stuName:null, stuFlowYm:null, stuView:'list', q:'', confirm:null, showExcluded:false, bankEdit:null };
 const EX_KEY = 'jangbu_unpaid_excluded_v1';
 function loadExcluded(){
-  try { return JSON.parse(localStorage.getItem(EX_KEY) || '{}') || {}; }
-  catch(e){ return {}; }
+  let m={};
+  try { m = JSON.parse(localStorage.getItem(EX_KEY) || '{}') || {}; } catch(e){ m={}; }
+  ((typeof DATA!=='undefined' && DATA.restMonths)||[]).forEach(x=>{ m[x.ym+'|'+x.name] = { ym:x.ym, name:x.name, sheet:true }; });
+  return m;
 }
 function saveExcluded(map){ localStorage.setItem(EX_KEY, JSON.stringify(map)); }
 const CAT_OVR_KEY = 'jangbu_bank_cat_overrides_v1';
@@ -501,6 +503,18 @@ function restorePair(ym, name){
 function excludedForMonth(ym){
   return Object.values(loadExcluded()).filter(x => x.ym === ym);
 }
+/* 시트 «휴원 기록» 탭: A=이름, B=월(2025-09 / 2025.9 / 2025년 9월) */
+function parseRestRows(rows){
+  const out=[], seen=new Set();
+  (rows||[]).forEach(r=>{
+    const name=String(r[0]||'').trim(), mm=String(r[1]||'').trim().match(/^(20\d\d)\s*[-.\/년]\s*(\d{1,2})/);
+    if(!name || !mm || /\d/.test(name) || name.length>10) return;
+    const ym=mm[1]+'-'+String(+mm[2]).padStart(2,'0'), k=ym+'|'+name;
+    if(!seen.has(k)){ seen.add(k); out.push({name, ym}); }
+  });
+  return out;
+}
+function restSetFor(ym){ return new Set((DATA.restMonths||[]).filter(x=>x.ym===ym).map(x=>x.name)); }
 
 
 document.getElementById('foot').innerHTML =
@@ -1419,7 +1433,7 @@ function renderFee(){
     const c=state.confirm;
     modalHtml = `<div class="modal-bg" id="modalBg"><div class="modal">
       <h3>미납에서 제외할까요?</h3>
-      <p><b style="color:var(--text)">${c.name}</b> · 납부대상 ${shortYm(c.ym)}월<br/>제외하면 이 달 미납 목록에서 빠집니다. 아래「제외 목록」에서 되돌릴 수 있어요.</p>
+      <p><b style="color:var(--text)">${c.name}</b> · 납부대상 ${shortYm(c.ym)}월<br/>제외하면 이 달 미납 목록에서 빠집니다(이 기기에만 저장).<br/>휴원이었다면 시트 «휴원 기록» 탭에 이름·월(예: ${c.name} / ${c.ym})을 적어두면 모든 기기에서 계속 빠져요.</p>
       <div class="acts">
         <button class="cancel" id="cfmNo">아니요</button>
         <button class="ok" id="cfmYes">제외할래요</button>
@@ -1501,8 +1515,8 @@ function renderFee(){
       ${exList.length ? `<div class="excluded-bar"><span>이 달 제외 ${exList.length}명</span><button type="button" id="toggleEx">${state.showExcluded?'숨기기':'목록 보기'}</button></div>` : ''}
       ${state.showExcluded && exList.length ? `<div class="card" style="padding:6px 14px">${exList.map(x=>`
         <div class="line">
-          <div><div>${x.name}</div><div class="m">미납에서 제외됨</div></div>
-          <button type="button" class="xbtn" data-restore="${x.name}">되돌리기</button>
+          <div><div>${x.name}</div><div class="m">${x.sheet?'시트 «휴원 기록»에 휴원으로 적힘':'미납에서 제외됨 (이 기기에만)'}</div></div>
+          ${x.sheet?'':`<button type="button" class="xbtn" data-restore="${x.name}">되돌리기</button>`}
         </div>`).join('')}</div>` : ''}
       <input class="search" id="qFee" placeholder="학생·학년 검색" value="${(state.q||'').replace(/"/g,'&quot;')}"/>
       <div class="card" style="padding:6px 14px">
@@ -2212,7 +2226,7 @@ function rosterNamesFor(ym){
   const key = DATA.syncedAt+'|'+yms.length;
   if(_rosterKey!==key){
     _rosterKey=key; _rosterCache={};
-    const paid = yms.map(paidSetFor), gone = sheetLeftSet(), names = new Set();
+    const paid = yms.map(m=>{ const ss=paidSetFor(m); restSetFor(m).forEach(n=>ss.add(n)); return ss; }), gone = sheetLeftSet(), names = new Set();
     const pv = prevYmSeoul(); let lastIdx = yms.length-1; while(lastIdx>0 && yms[lastIdx]>pv) lastIdx--;
     paid.forEach(ss=>ss.forEach(n=>names.add(n)));
     yms.forEach(m=>_rosterCache[m]=new Set());
@@ -3117,8 +3131,9 @@ async function syncFromSheet(silent){
   setSyncStatus('구글 시트에서 불러오는 중');
   try{
     if(!SHEET_ID) throw new Error('장부 주소가 올바르지 않아요. 받은 주소 전체(# 뒤까지)로 다시 열어 주세요.');
-    const [bankRows, rosRows] = await Promise.all([fetchSheetRows('통장거래내역'), fetchSheetRows('학생 명단')]);
+    const [bankRows, rosRows, restRows] = await Promise.all([fetchSheetRows('통장거래내역'), fetchSheetRows('학생 명단'), fetchSheetRows('휴원 기록').catch(()=>[])]);
     const nd = buildLedger(bankRows, rosRows);
+    nd.restMonths = parseRestRows(restRows);
     nd.syncedAt = _stamp();
     applyNewData(nd);
     try{ localStorage.setItem('jangbuCache', JSON.stringify(nd)); }catch(e){}
