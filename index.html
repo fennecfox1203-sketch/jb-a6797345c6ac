@@ -2204,31 +2204,37 @@ function paidSetFor(ym){
   (block.paid || []).forEach(x => { if(x && x.name) s.add(x.name); });
   return s;
 }
-const LEAVE_MONTHS = 3; /* 이 달 수만큼 연속 납부 없으면 퇴소 */
-function prevMonths(ym, k){ const out=[]; let c=ym; for(let i=0;i<k;i++){ c=c?flowMonthPrev(c):null; out.push(c); } return out; }
-function unpaidNamesFor(ym){
-  // 최근 (LEAVE_MONTHS-1)개월 안에 낸 적 있는데 이번 달 납부 없음 = 미납(재원)
-  const cur = paidSetFor(ym), out = new Set();
-  prevMonths(ym, LEAVE_MONTHS-1).forEach(m => { if(m) paidSetFor(m).forEach(n => { if(!cur.has(n)) out.add(n); }); });
-  return out;
-}
+const LEAVE_MONTHS = 3; /* 이 달 수만큼 연속 납부 없으면 퇴소(납부 끊긴 달로 소급) */
 function sheetLeftSet(){ return new Set((DATA.students||[]).filter(x=>x && x.bucket==='퇴소').map(x=>x.name)); }
+let _rosterCache=null, _rosterKey=null;
 function rosterNamesFor(ym){
-  // 재원 = 이번 달 납부 + 최근 미납(시트 '퇴소' 학생은 미납 기간 없이 바로 제외)
-  const s = paidSetFor(ym), gone = sheetLeftSet();
-  unpaidNamesFor(ym).forEach(n => { if(!gone.has(n)) s.add(n); });
-  return s;
+  const yms = Object.keys(DATA.tuition||{}).filter(Boolean).sort();
+  const key = DATA.syncedAt+'|'+yms.length;
+  if(_rosterKey!==key){
+    _rosterKey=key; _rosterCache={};
+    const paid = yms.map(paidSetFor), gone = sheetLeftSet(), names = new Set();
+    const pv = prevYmSeoul(); let lastIdx = yms.length-1; while(lastIdx>0 && yms[lastIdx]>pv) lastIdx--;
+    paid.forEach(ss=>ss.forEach(n=>names.add(n)));
+    yms.forEach(m=>_rosterCache[m]=new Set());
+    names.forEach(n=>{
+      const pi = yms.map((m,k)=>paid[k].has(n)?k:-1).filter(k=>k>=0);
+      yms.forEach((m,k)=>{
+        if(paid[k].has(n)){ _rosterCache[m].add(n); return; }
+        const last = pi.filter(x=>x<k).pop(); if(last==null) return;
+        if(gone.has(n)) return;
+        const next = pi.find(x=>x>k);
+        if(next!=null){ if(next-last-1 < LEAVE_MONTHS) _rosterCache[m].add(n); return; }
+        if(lastIdx-last < LEAVE_MONTHS) _rosterCache[m].add(n); /* 아직 판단 보류(이번 달은 진행 중이라 제외) */
+      });
+    });
+  }
+  return new Set(_rosterCache[ym]||[]);
 }
 
 function leaveNamesForMonth(ym, prevYm){
-  // 퇴소 = LEAVE_MONTHS개월 전 납부 → 그 뒤 LEAVE_MONTHS개월 연속 납부 없음
-  const ms = prevMonths(ym, LEAVE_MONTHS);
-  const base = ms[LEAVE_MONTHS-1]; if(!base) return new Set();
-  const recent = [ym, ...ms.slice(0, LEAVE_MONTHS-1)].filter(Boolean).map(paidSetFor);
-  const out = new Set(), gone = sheetLeftSet(), cur = paidSetFor(ym);
-  paidSetFor(base).forEach(n => { if(!gone.has(n) && !recent.some(x => x.has(n))) out.add(n); });
-  // 시트 '퇴소' 학생: 마지막 납부 다음 달에 퇴소
-  if(ms[0]) paidSetFor(ms[0]).forEach(n => { if(gone.has(n) && !cur.has(n)) out.add(n); });
+  if(!prevYm) return new Set();
+  const a = rosterNamesFor(prevYm), b = rosterNamesFor(ym), out = new Set();
+  a.forEach(n=>{ if(!b.has(n)) out.add(n); });
   return out;
 }
 
@@ -2547,7 +2553,7 @@ function renderStudentChartDetail(){
       <div class="chart-hint">좌우 스크롤 · 탭하면 목록</div>
       <div class="chart-scroll" id="stuEnrollScroll">${chart.svg}</div>
       <div class="chart-legend">
-        <span><i style="background:var(--fee)"></i>재원(최근 3개월 안에 납부)</span>
+        <span><i style="background:var(--fee)"></i>재원(납부, 잠깐 밀린 달 포함)</span>
         <span><i style="background:var(--inc)"></i>신규(이번 달 새로 납부)</span>
         <span><i style="background:var(--exp)"></i>퇴소(3개월 연속 납부 없음)</span>
       </div>
@@ -2619,7 +2625,7 @@ function renderStudentFlow(){
     ${entered.length ? entered.map(n=>personRow(n,'enter')).join('') : '<div class="empty" style="padding:16px 10px">이달 신규 없음</div>'}
     <div class="stu-sec hi"><span class="t" style="color:var(--exp)">퇴소</span><span class="n">${left.length}명</span></div>
     ${left.length ? left.map(n=>personRow(n,'leave')).join('') : '<div class="empty" style="padding:16px 10px">이달 퇴소 없음</div>'}
-    <div class="bank-hint" style="margin-top:10px">신규: 전달 재원에 없다가 이번 달 납부 · 퇴소: 3개월 연속 교습비 납부 없음 · 시트 «학생 명단»에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>`;
+    <div class="bank-hint" style="margin-top:10px">신규: 전달 재원에 없다가 이번 달 납부 · 퇴소: 3개월 연속 납부 없으면 납부가 끊긴 달로 기록 · 시트 «학생 명단»에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>`;
 
   el('backStuFlow').onclick=()=>{ state.stuFlowYm=null; render(); };
   el('segStuFlow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.stuFlowYm=b.dataset.ym; render(); });
@@ -2651,7 +2657,7 @@ function renderStudents(){
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}재원</span><span class="a fee">${last?last.enrolled+'명':'-'}</span></div>
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}신규</span><span class="a inc">${last?last.entered+'명':'-'}</span></div>
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}퇴소</span><span class="a exp">${last?last.left+'명':'-'}</span></div>
-      <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 최근 3개월 안에 교습비 낸 학생 · 신규 = 전달 재원에 없다가 이번 달 납부 · 퇴소 = 3개월 연속 납부 없음, 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>
+      <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 교습비 납부 학생(잠깐 밀린 달 포함) · 신규 = 전달 재원에 없다가 이번 달 납부 · 퇴소 = 3개월 연속 납부 없으면 납부 끊긴 달로 기록, 시트에 퇴소로 적힌 학생은 바로</div>
     </div>`;
   const chart = el('stuEnrollChart');
   if(chart) chart.addEventListener('click', ()=> goStudentChartDetail());
