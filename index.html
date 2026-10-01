@@ -10,7 +10,6 @@
 <meta name="robots" content="noindex,nofollow"/>
 <link rel="apple-touch-icon" href="icon-180.png"/>
 <link rel="icon" href="icon-180.png"/>
-<link rel="manifest" href="manifest.json"/>
 <meta name="theme-color" content="#0b0f14"/>
 <title>공부방 장부</title>
 <style>
@@ -252,6 +251,7 @@ header p{margin:6px 0 0;color:var(--muted);font-size:.86rem}
     </div>
   </header>
   <input type="file" id="bankUploadInput" multiple accept=".csv,text/csv,.xlsx,.xls,.json,application/json,.jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+  <div id="feeIssues"></div>
   <div class="totals-head" id="totalsHead"></div>
   <div class="totals" id="totals"></div>
   <div class="tabs">
@@ -444,6 +444,7 @@ function loadExcluded(){
 function saveExcluded(map){ localStorage.setItem(EX_KEY, JSON.stringify(map)); }
 const CAT_OVR_KEY = 'jangbu_bank_cat_overrides_v1';
 function loadCatOverrides(){
+  return {}; /* 조회 전용 */
   try { return JSON.parse(localStorage.getItem(CAT_OVR_KEY) || '{}') || {}; }
   catch(e){ return {}; }
 }
@@ -589,6 +590,7 @@ function goFeeMonth(ym){
 }
 
 function goStudentDetail(name){
+  return; /* 학생 탭 제거 */
   if(!name) return;
   const s = (typeof studentByName==='function') ? studentByName(name) : ((DATA.students||[]).find(x=>x && x.name===name)||null);
   state.tab='students';
@@ -2521,7 +2523,7 @@ function renderStudentChartDetail(){
   }).join('');
 
   p.innerHTML = `
-    <button class="back" id="backStuChart">← 학생 목록</button>
+    <button class="back" id="backStuChart">← 학생</button>
     <div class="card">
       <h2 style="margin:0">재원·입소·퇴소 상세</h2>
       <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">전월까지 전체 · 막대·행 누르면 그달 입소·퇴소 목록</div>
@@ -2582,7 +2584,7 @@ function renderStudentFlow(){
     const s = studentByName(name);
     const eg = s ? effectiveStudentGrade(s) : null;
     const meta = s
-      ? `${escHtml(eg.label||s.grade||'-')} · ${escHtml(s.school||'-')} · ${escHtml(s.status||'')}`
+      ? `${escHtml(eg.label||s.grade||'-')} · ${escHtml(s.status||'')}`
       : '명단에 없음 · 납부 기록 기준';
     const color = kind==='leave' ? 'var(--exp)' : 'var(--inc)';
     const tag = kind==='leave' ? '퇴소' : '입소';
@@ -2593,7 +2595,7 @@ function renderStudentFlow(){
   }
 
   p.innerHTML = `
-    <button class="back" id="backStuFlow">${state.stuView==='chartDetail'?'← 그래프 상세':'← 학생 목록'}</button>
+    <button class="back" id="backStuFlow">${state.stuView==='chartDetail'?'← 그래프 상세':'← 학생'}</button>
     <div class="card">
       <h2 style="margin:0">${escHtml(shortYm(ym))}월 입소·퇴소</h2>
       <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">교습비 납부·미납 명단 기준${prevYm? ' · 전월 '+escHtml(shortYm(prevYm)): ' · 전월 없음'}</div>
@@ -2612,141 +2614,19 @@ function renderStudentFlow(){
   p.querySelectorAll('.stu-card[data-name]').forEach(c=>{
     const s = studentByName(c.dataset.name);
     if(!s) return;
-    c.onclick=()=>{ state.stuFlowYm=null; state.stuView='list'; state.stuName=c.dataset.name; render(); };
+    c.style.cursor='default';
   });
 }
 
 function renderStudents(){
   const p=el('panel-students');
-  const all=DATA.students||[];
-  const steps = promoteStepsNow();
-  const asOfY = gradeAsOfYear();
+  state.stuName=null;
   if(state.stuFlowYm){ renderStudentFlow(); return; }
   if(state.stuView==='chartDetail'){ renderStudentChartDetail(); return; }
-  if(state.stuName){
-    const s=all.find(x=>x.name===state.stuName);
-    if(!s){ state.stuName=null; }
-    else {
-      const eg = effectiveStudentGrade(s);
-      const hist=studentTuitionHistory(s.name);
-      const enroll=(DATA.enroll||{})[s.name]||'';
-      const gradeShow = eg.promoted
-        ? `${eg.label} <span style="color:var(--muted);font-weight:500;font-size:.82rem">(시트 ${eg.baseLabel}·${steps}년 승급)</span>`
-        : (eg.label||'-');
-      const rows=[
-        ['상태', s.status],
-        ['학년', gradeShow],
-        ['학교', s.school||'-'],
-        ['반유형', s.classType||'-'],
-        ['교습비', s.tuition? won(s.tuition):'-'],
-        ['결제 방법', s.payMethod||'-'],
-        ['결제자', s.payer||'-'],
-        ['결제일', s.payNote||'-'],
-        ['첫 결제일', s.firstPay||'-'],
-        ['정기 결제일', s.regularPay||'-'],
-        ['등원 추정', enroll||'-'],
-        ['주소', s.address||'-'],
-        ['학부모 연락', s.phoneParent||'-'],
-        ['학생 연락', s.phoneStudent||'-'],
-        ['카카오', s.kakao||'-'],
-        ['형제', s.siblings||'-'],
-        ['주요과목', s.subjects||'-'],
-        ['출생', s.birthYear? (s.birthYear+' · '+(s.age!=null?s.age+'세':'')) : '-'],
-      ];
-      p.innerHTML=`
-        <button class="back" id="backStu">← 학생 목록</button>
-        <div class="card">
-          <h2 style="margin:0">${escHtml(s.name)}</h2>
-          <div class="sub" style="margin-top:4px;color:var(--muted)">${escHtml(eg.label||'')} · ${escHtml(s.status||'')}</div>
-        </div>
-        <div class="card stu-detail">
-          ${rows.map(([k,v])=>`<div class="row"><span class="k">${k}</span><span class="v">${typeof v==='string'&&v.includes('<')?v:escHtml(v||'-')}</span></div>`).join('')}
-        </div>
-        <div class="card">
-          <h2>교습비 이력</h2>
-          ${hist.length? hist.map(h=>`<div class="metric"><span class="n">${koShortYm(h.ym)}${h.day? ' · '+h.day.slice(5):''}</span><span class="a ${h.status==='납부'?'fee':'warn'}">${h.status} ${won(h.status==='납부'?h.amt:h.expected)}</span></div>`).join('') : '<div class="empty">교습비 현황에 기록 없음</div>'}
-        </div>`;
-      el('backStu').onclick=()=>{ state.stuName=null; render(); };
-      return;
-    }
-  }
-
-  const q=(state.q||'').trim().toLowerCase();
-  const filt=state.stuFilt||'재학';
-  const counts={재학:0,휴원:0,퇴소:0,기타:0,전체:all.length};
-  all.forEach(s=>{ counts[s.bucket]=(counts[s.bucket]||0)+1; });
-  let list=all.filter(s=> filt==='전체' ? true : s.bucket===filt);
-  if(q){
-    list=list.filter(s=>{
-      const eg=effectiveStudentGrade(s);
-      return [s.name,s.school,eg.label,s.grade,s.address,s.payer,s.subjects,s.phoneParent].join(' ').toLowerCase().includes(q);
-    });
-  }
-  list = list.slice().sort(compareStudentsByGrade);
-  const curYm=currentYmSeoul();
-  const block=(DATA.tuition||{})[curYm]||{paid:[],unpaid:[]};
-  const paidSet=new Set((block.paid||[]).map(x=>x.name));
-  const unpaidSet=new Set((block.unpaid||[]).map(x=>x.name));
-
-  const keepFocus = document.activeElement && document.activeElement.id==='stuQ';
-  const caret = keepFocus ? document.activeElement.selectionStart : null;
+  const all=DATA.students||[];
+  const counts={재학:0,휴원:0,퇴소:0};
+  all.forEach(s=>{ if(s.bucket in counts) counts[s.bucket]++; });
   const stuChart = buildStudentEnrollBarChart({summary:true});
-
-  // group 초등 → 중등 → 고등 → 기타
-  const bandOrder = ['초등','중등','고등','성인','기타'];
-  const groups = {};
-  list.forEach(s=>{
-    const eg = effectiveStudentGrade(s);
-    const band = bandOrder.includes(eg.g1) ? eg.g1 : '기타';
-    if(!groups[band]) groups[band] = [];
-    groups[band].push({ s, eg });
-  });
-
-  function cardHtml(s, eg){
-    let badge='';
-    if(s.bucket==='재학'){
-      if(paidSet.has(s.name)) badge='<span class="badge on">이달 납부</span>';
-      else if(unpaidSet.has(s.name)) badge='<span class="badge off">이달 미납</span>';
-      else badge='<span class="badge">이달 기록없음</span>';
-    } else if(s.bucket==='휴원') badge='<span class="badge wait">휴원</span>';
-    else if(s.bucket==='퇴소') badge='<span class="badge off">퇴소</span>';
-    else badge=`<span class="badge">${escHtml(s.status||'')}</span>`;
-    return `<div class="stu-card" data-name="${escHtml(s.name)}">
-      <div class="top"><span class="name">${escHtml(s.name)}</span>${badge}</div>
-      <div class="meta">
-        <span>${escHtml(eg.label||'-')}${eg.promoted?' ↑':''}</span>
-        <span>${escHtml(s.school||'-')}</span>
-        <span>${escHtml(s.classType||'')}</span>
-        <span>${escHtml(s.payMethod||'')}</span>
-      </div>
-      <div class="amt">${s.tuition? won(s.tuition):'-'}</div>
-    </div>`;
-  }
-
-  let listHtml = '';
-  if(!list.length){
-    listHtml = '<div class="empty">해당하는 학생이 없어요</div>';
-  } else {
-    bandOrder.forEach(band=>{
-      const items = groups[band];
-      if(!items || !items.length) return;
-      listHtml += `<div class="stu-sec ${gradeBandClass(band)}"><span class="t">${band}</span><span class="n">${items.length}명</span></div>`;
-      let lastG = null;
-      items.forEach(({s, eg})=>{
-        const gkey = eg.label;
-        if(gkey !== lastG){
-          listHtml += `<div class="stu-grade-tag">${escHtml(gkey)}</div>`;
-          lastG = gkey;
-        }
-        listHtml += cardHtml(s, eg);
-      });
-    });
-  }
-
-  const promoteNote = steps > 0
-    ? `${asOfY}년 시트 학년 기준 · ${steps}회 승급 반영(매년 1월 1일)`
-    : `학년은 ${asOfY}년 시트 기준 · 다음 승급 ${asOfY+1}.1.1`;
-
   p.innerHTML=`
     <div class="chart-wrap bars ytd" id="stuEnrollChart">
       <div class="chart-hint">최근 9개월 · 탭하면 상세</div>
@@ -2757,37 +2637,14 @@ function renderStudents(){
         <span><i style="background:var(--exp)"></i>퇴소</span>
       </div>
     </div>
-    <input class="stu-search" id="stuQ" placeholder="이름·학교·학년 검색" value="${escHtml(state.q||'')}"/>
-    <div class="seg" id="segStu">
-      ${['재학','휴원','퇴소','기타','전체'].map(f=>`<button data-f="${f}" class="${filt===f?'on':''}">${f} ${f==='전체'?counts.전체:(counts[f]||0)}</button>`).join('')}
-    </div>
-    <div class="card" style="margin-bottom:10px">
-      <div class="metric"><span class="n">표시</span><span class="a">${list.length}명</span></div>
-      <div class="sub" style="color:var(--muted);margin-top:4px">초등→중등→고등 · 저학년부터 · ${promoteNote}</div>
-      <div class="sub" style="color:var(--muted);margin-top:2px">시트 «학생 명단» · ${koShortYm(curYm)} 납부 ${paidSet.size} · 미납 ${unpaidSet.size}</div>
-    </div>
-    ${listHtml}`;
-
-  const sq=el('stuQ');
-  if(sq){
-    let composing=false;
-    const applyQ=()=>{ const v=sq.value; if(v===state.q) return; state.q=v; render(); };
-    sq.addEventListener('compositionstart',()=>{ composing=true; });
-    sq.addEventListener('compositionend',()=>{ composing=false; applyQ(); });
-    sq.addEventListener('input',()=>{ if(!composing) applyQ(); });
-    if(keepFocus){
-      sq.focus();
-      const pos = caret!=null ? caret : sq.value.length;
-      try{ sq.setSelectionRange(pos,pos); }catch(e){}
-    }
-  }
-  el('segStu').querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.stuFilt=b.dataset.f; state.q=el('stuQ')?el('stuQ').value:state.q; render(); });
-  p.querySelectorAll('.stu-card[data-name]').forEach(c=>c.onclick=()=>{ state.stuName=c.dataset.name; render(); });
+    <div class="card">
+      <div class="metric"><span class="n">재학</span><span class="a fee">${counts.재학}명</span></div>
+      <div class="metric"><span class="n">휴원</span><span class="a">${counts.휴원}명</span></div>
+      <div class="metric"><span class="n">퇴소</span><span class="a">${counts.퇴소}명</span></div>
+      <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">학생 정보 수정은 구글 시트 «학생 명단»에서 해 주세요.</div>
+    </div>`;
   const chart = el('stuEnrollChart');
-  if(chart){
-    chart.addEventListener('click', ()=> goStudentChartDetail());
-  }
-  // summary: no h-scroll / bindChartHDrag
+  if(chart) chart.addEventListener('click', ()=> goStudentChartDetail());
 }
 
 function escHtml(s){
@@ -2834,15 +2691,7 @@ function renderBank(){
   const p = el('panel-bank');
   const months = bankMonths().slice().reverse();
   if(!months.length){
-    p.innerHTML = `    <div class="bank-upload-row">
-      <div class="bank-upload-copy">
-        <div class="t">은행 거래내역 업로드</div>
-        <div class="s">통장 CSV·엑셀 + 카드·동백 JSON·증빙 사진 함께 · 사진은 서버 OCR</div>
-      </div>
-      <button type="button" class="upload-btn" id="bankUploadBtn">업로드</button>
-    </div>
-    <div class="upload-status" id="uploadStatus" hidden></div>
-    <div class="empty">은행 거래내역이 아직 없습니다</div>`;
+    p.innerHTML = `<div class="empty">은행 거래내역이 아직 없습니다</div>`;
     bindBankUpload();
     return;
   }
@@ -2906,18 +2755,7 @@ function renderBank(){
   }
 
   p.innerHTML = `
-    <div class="bank-upload-row">
-      <div class="bank-upload-copy">
-        <div class="t">은행 거래내역 업로드</div>
-        <div class="s">통장 CSV·엑셀 + 카드·동백 JSON·증빙 사진 함께 · 사진은 서버 OCR</div>
-      </div>
-      <button type="button" class="upload-btn" id="bankUploadBtn">업로드</button>
-    </div>
-    <div class="upload-status" id="uploadStatus" hidden></div>
-    <div class="bank-hint">시트에 반영된 은행 거래예요. 각 줄의 <b style="color:var(--text)">분류</b>를 누르면 수입·지출 · 중분류 · 세부분류를 고칠 수 있어요. 수정은 이 기기에 저장되고, 분석 서버가 켜져 있으면 시트 반영 대기열에도 올라갑니다. Master에게 «분류 시트 반영»이라고 하면 구글 시트 J/K/L에 씁니다.</div>
-    <div style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <button type="button" class="upload-btn" id="catPendingCheckBtn" style="font-size:.82rem;padding:8px 12px">분류 수정 시트 대기 확인</button>
-    </div>
+    <div class="bank-hint">구글 시트에 입력된 거래예요. 수정은 시트에서 해 주세요.</div>
     <div class="seg" id="segBank">${months.map(ym=>`<button data-ym="${ym}" class="${ym===state.bankMonth?'on':''}">${shortYm(ym)}</button>`).join('')}</div>
     <div class="card">
       <h2>${shortYm(state.bankMonth)}월 합계</h2>
@@ -2943,9 +2781,8 @@ function renderBank(){
         return `<div class="line" data-bank-key="${escHtml(l._bankKey)}">
           <div>
             <div>${title}</div>
-            <div class="tx-path${l._edited?' edited':''}" data-edit="1">${pathHtml}</div>
+            <div class="tx-path">${pathHtml}</div>
             <div class="m">${day}${memoBit? ' · '+memoBit:''}</div>
-            <button type="button" class="cat-edit" data-edit="1">분류 수정</button>
           </div>
           <div class="a" style="color:${color}">${won(l.amt)}</div>
         </div>`;
@@ -3075,7 +2912,11 @@ function render(){
   else if(state.tab==='bank') renderBank();
 }
 /* ===== 구글 시트 직접 동기화 (맥미니 서버 불필요) ===== */
-const SHEET_ID = '10TQRPxfmD5sgaF-zF4EnYEwTrGAzS4lK5Ij8EvEUF_I';
+const SHEET_ID = (function(){
+  const m=/[#&]k=([A-Za-z0-9_-]{20,})/.exec(location.hash||'');
+  if(m){ try{ localStorage.setItem('jangbuSheet', m[1]); }catch(e){} return m[1]; }
+  try{ return localStorage.getItem('jangbuSheet')||''; }catch(e){ return ''; }
+})();
 function sheetCsvUrl(name){ return 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&headers=0&sheet='+encodeURIComponent(name)+'&t='+Date.now(); }
 function parseCsv(text){
   const rows=[]; let row=[], f='', q=false;
@@ -3106,6 +2947,19 @@ function buildLedger(bankRows, rosRows){
   if(hi<0) throw new Error('통장거래내역 머리글(대상자)을 못 찾았어요');
   const bank = B.slice(hi+1).map(r=>{ r=r.slice(); r[19]=_target(r); return r; });
   const ros = rosRows.map(r=>_pad(r.slice(),30));
+  const issues=[]; let parent=null;
+  for(const r of bank){
+    if(_s(r[0])) parent=r;
+    if(_s(r[10])!=='교습비' || _s(r[9])!=='수입') continue;
+    const mRaw=_s(r[12]), mNum=mRaw.replace(/,/g,'');
+    const miss=[];
+    if(!_s(r[16])) miss.push('대상자');
+    if(!_ym(r[19])) miss.push('납부월');
+    if(mRaw==='' || !isFinite(Number(mNum))) miss.push('금액');
+    if(!miss.length) continue;
+    const pr=parent||r;
+    issues.push({day:_s(pr[0]), memo:_s(pr[5]), amt:(mRaw!=='' && isFinite(Number(mNum)))?Number(mNum):null, miss});
+  }
   const GORDER={'초등':0,'중등':1,'고등':2,'성인':3}, BORDER={'재학':0,'휴원':1,'퇴소':2,'기타':3};
   // students
   const students=[];
@@ -3117,10 +2971,7 @@ function buildLedger(bankRows, rosRows){
     const g2v = _s(r[5])!=='' ? _num(r[5]) : null;
     const grade=(g1+(g2v!=null?' '+g2v:'')).trim();
     const bucket=['재학','휴원','퇴소'].includes(status)?status:'기타';
-    students.push({name, birthYear:_s(r[2]), age:_s(r[3])!==''?_num(r[3]):null, grade1:g1, grade2:g2v, grade,
-      address:_s(r[6]), status, tuition:_num(r[8]), classType:_s(r[10]), school:_s(r[11]), phoneStudent:_s(r[12]),
-      phoneParent:_s(r[13]), kakao:_s(r[14]), payNote:_s(r[16]), firstPay:_s(r[18]), regularPay:_s(r[19]),
-      payMethod:_s(r[21]), payer:_s(r[22]), siblings:_s(r[23]), subjects:_s(r[24]), bucket});
+    students.push({name, grade1:g1, grade2:g2v, grade, status, tuition:_num(r[8]), bucket});
   }
   const gk=x=>[BORDER[x.bucket], (x.grade1 in GORDER)?GORDER[x.grade1]:9, typeof x.grade2==='number'?x.grade2:99, x.name];
   students.sort((a,b)=>{ const A=gk(a),Bk=gk(b); for(let i=0;i<4;i++){ const c=_cmp(A[i],Bk[i]); if(c) return c; } return 0; });
@@ -3195,13 +3046,29 @@ function buildLedger(bankRows, rosRows){
   return {title:'엄궁 코오롱 공부방', scope:fmt(first)+' ~ '+fmt(latest),
     note:'교습비 입금 있는 달까지('+latest+') · 납부=순액>0 · 미납=재학·첫납부월 이후',
     updated: now.getFullYear()+'-'+p2(now.getMonth()+1)+'-'+p2(now.getDate()), latestFeeMonth:latest,
-    totals:tot, months, monthDetails:mdSorted, suji, tuition, billMonths:bill, enroll, students};
+    totals:tot, months, monthDetails:mdSorted, suji, tuition, billMonths:bill, enroll, students, issues};
 }
 
+function renderIssues(){
+  const box=el('feeIssues'); if(!box) return;
+  const L=DATA.issues||[];
+  if(!L.length){ box.innerHTML=''; return; }
+  const open=!!window.__issuesOpen;
+  const fmtW=n=>Number(n||0).toLocaleString('ko-KR')+'원';
+  box.innerHTML=`<div style="margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid #b45309;background:rgba(245,158,11,.12);font-size:.86rem">
+    <div id="issuesToggle" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:700;color:#fbbf24">
+      <span>⚠️ 시트에서 채워야 할 교습비 행 ${L.length}건</span><span style="font-weight:400;font-size:.78rem">${open?'접기':'보기'}</span></div>
+    ${open?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${L.map(x=>`<div style="display:flex;justify-content:space-between;gap:8px">
+      <span>${escHtml((x.day||'').slice(5).replace('-','/'))} · ${escHtml(x.memo||'')}<br><span style="color:var(--muted);font-size:.78rem">빈칸: ${x.miss.join('·')}</span></span>
+      <span style="white-space:nowrap">${x.amt!=null?fmtW(x.amt):'금액 오류'}</span></div>`).join('')}</div>`:''}
+  </div>`;
+  el('issuesToggle').onclick=()=>{ window.__issuesOpen=!open; renderIssues(); };
+}
 function applyNewData(nd){
   if(!nd || !nd.monthDetails) return false;
   Object.keys(DATA).forEach(k=>{ delete DATA[k]; });
   Object.assign(DATA, nd);
+  renderIssues();
   renderTotals();
   render();
   return true;
@@ -3233,6 +3100,7 @@ async function syncFromSheet(silent){
   if(btn){ btn.disabled = true; btn.textContent = '⏳ 동기화 중…'; }
   setSyncStatus('구글 시트에서 불러오는 중');
   try{
+    if(!SHEET_ID) throw new Error('장부 주소가 올바르지 않아요. 받은 주소 전체(# 뒤까지)로 다시 열어 주세요.');
     const [bankRows, rosRows] = await Promise.all([fetchSheetRows('통장거래내역'), fetchSheetRows('학생 명단')]);
     const nd = buildLedger(bankRows, rosRows);
     nd.syncedAt = _stamp();
@@ -3246,8 +3114,8 @@ async function syncFromSheet(silent){
     if(btn){ btn.disabled = false; btn.textContent = '🔄 시트 동기화'; }
   }
 }
+renderIssues();
 renderTotals();
-bindBankUpload();
 render();
 (function(){ const b=el('syncBtn'); if(b) b.onclick = ()=>syncFromSheet(false); })();
 syncFromSheet(true);
