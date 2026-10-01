@@ -438,7 +438,8 @@ let state = { tab:'sales', month:null, view:'list', salesView:'list', sujiView:'
 const EX_KEY = 'jangbu_unpaid_excluded_v1';
 function loadExcluded(){
   let m={};
-  ((typeof DATA!=='undefined' && DATA.restMonths)||[]).forEach(x=>{ m[x.ym+'|'+x.name] = { ym:x.ym, name:x.name, sheet:true }; });
+  ((typeof DATA!=='undefined' && DATA.restMonths)||[]).forEach(x=>{ if(!PER_SESSION.includes(x.name)) m[x.ym+'|'+x.name] = { ym:x.ym, name:x.name, sheet:true }; });
+  if(typeof DATA!=='undefined') Object.keys(DATA.tuition||{}).forEach(ym=>PER_SESSION.forEach(n=>{ m[ym+'|'+n] = { ym, name:n, sheet:true, session:true }; }));
   return m;
 }
 function saveExcluded(map){ localStorage.setItem(EX_KEY, JSON.stringify(map)); }
@@ -514,6 +515,9 @@ function parseRestRows(rows){
   });
   return out;
 }
+/* 횟수로 등록하는 학생: 미납·퇴소 계산에서 제외(납부한 적 있으면 계속 재원) */
+const PER_SESSION = ['손유록'];
+function perSessionSet(){ return new Set(PER_SESSION); }
 function restSetFor(ym){ return new Set((DATA.restMonths||[]).filter(x=>x.ym===ym).map(x=>x.name)); }
 
 
@@ -1478,7 +1482,7 @@ function renderFee(){
       ${modalHtml}`;
   } else {
     const block=DATA.tuition[state.feeMonth]||{paidTotal:0,paidCount:0,unpaidTotal:0,unpaidCount:0,paid:[],unpaid:[]};
-    const exList = excludedForMonth(state.feeMonth);
+    const exList = excludedForMonth(state.feeMonth).filter(x=>!x.session);
     const exNames = new Set(exList.map(x=>x.name));
 
     let list;
@@ -1514,7 +1518,7 @@ function renderFee(){
       ${exList.length ? `<div class="excluded-bar"><span>이 달 제외 ${exList.length}명</span><button type="button" id="toggleEx">${state.showExcluded?'숨기기':'목록 보기'}</button></div>` : ''}
       ${state.showExcluded && exList.length ? `<div class="card" style="padding:6px 14px">${exList.map(x=>`
         <div class="line">
-          <div><div>${x.name}</div><div class="m">${x.sheet?'시트 «휴원 기록»에 적힘 · 퇴소로 처리':'미납에서 제외됨 (이 기기에만)'}</div></div>
+          <div><div>${x.name}</div><div class="m">${x.session?'횟수 등록 학생 · 미납 계산 제외':x.sheet?'시트 «휴원 기록»에 적힘 · 퇴소로 처리':'미납에서 제외됨 (이 기기에만)'}</div></div>
 
         </div>`).join('')}</div>` : ''}
       <input class="search" id="qFee" placeholder="학생·학년 검색" value="${(state.q||'').replace(/"/g,'&quot;')}"/>
@@ -2232,6 +2236,7 @@ function rosterNamesFor(ym){
       const pi = yms.map((m,k)=>paid[k].has(n)?k:-1).filter(k=>k>=0);
       yms.forEach((m,k)=>{
         if(paid[k].has(n)){ _rosterCache[m].add(n); return; }
+        if(perSessionSet().has(n)){ if(!gone.has(n) && pi.some(x=>x<k)) _rosterCache[m].add(n); return; }
         if(rest[k].has(n)) return; /* «휴원 기록» 달 = 퇴소 처리 */
         const last = pi.filter(x=>x<k).pop(); if(last==null) return;
         if(gone.has(n)) return;
