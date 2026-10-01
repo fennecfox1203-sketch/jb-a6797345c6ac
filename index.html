@@ -2677,7 +2677,8 @@ function renderStudents(){
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}퇴소</span><span class="a exp">${last?last.left+'명':'-'}</span></div>
       <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 교습비 납부 학생(잠깐 밀린 달 포함) · 신규 = 전달 재원에 없다가 이번 달 납부 · 퇴소 = 3개월 연속 납부 없으면 납부 끊긴 달로 기록, 시트에 퇴소로 적힌 학생은 바로</div>
     </div>
-    ${last?buildGradeDonut(last.ym):''}`;
+    ${last?buildGradeDonut(last.ym):''}
+    ${buildGradeSalesLine(pts.map(x=>x.ym))}`;
   const chart = el('stuEnrollChart');
   if(chart) chart.addEventListener('click', ()=> goStudentChartDetail());
 }
@@ -2697,6 +2698,27 @@ function buildGradeDonut(ym){
       <svg viewBox="0 0 140 140" width="130" height="130" style="flex:none">${arcs}<text x="70" y="66" text-anchor="middle" fill="currentColor" font-size="13" opacity=".7">재원</text><text x="70" y="86" text-anchor="middle" fill="currentColor" font-size="20" font-weight="700">${total}명</text></svg>
       <div style="flex:1">${legend}</div>
     </div></div>`;
+}
+
+function buildGradeSalesLine(yms){
+  if(!yms || !yms.length) return '';
+  const keys=['초등','중등','고등'], colors={'초등':'#4ade80','중등':'#60a5fa','고등':'#f472b6'};
+  const series={}; keys.forEach(k=>series[k]=yms.map(ym=>{ const b=buildIncGradeKids(ym).find(x=>x.name===k); return b?b.amt:0; }));
+  const max=Math.max(1,...keys.flatMap(k=>series[k]));
+  const W=340,H=180,L=34,R=10,T=14,B=26, iw=W-L-R, ih=H-T-B;
+  const x=i=> L + (yms.length===1? iw/2 : i*iw/(yms.length-1));
+  const y=v=> T + ih - v/max*ih;
+  const man=v=> (v/10000).toFixed(0);
+  let grid=''; [0,.5,1].forEach(f=>{ const yy=T+ih-f*ih; grid+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="currentColor" opacity=".12"/><text x="${L-4}" y="${yy+3}" text-anchor="end" font-size="9" fill="currentColor" opacity=".5">${man(max*f)}</text>`; });
+  const xl=yms.map((ym,i)=>`<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="9" fill="currentColor" opacity=".6">${+ym.slice(5)}</text>`).join('');
+  const lines=keys.map(k=>{ const pts=series[k].map((v,i)=>x(i)+','+y(v)).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${colors[k]}" stroke-width="2.2" stroke-linejoin="round"/>`+series[k].map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="2.6" fill="${colors[k]}"/>`).join(''); }).join('');
+  const lastI=yms.length-1;
+  const legend=keys.map(k=>`<div class="metric"><span class="n"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${colors[k]};margin-right:6px"></i>${k}</span><span class="a">${won(series[k][lastI])}</span></div>`).join('');
+  return `<div class="card"><h2 style="margin-bottom:4px">학년별 교습비 매출</h2>
+    <div class="sub" style="color:var(--muted);font-size:.78rem;margin-bottom:6px">입금 기준 · 단위 만원 · 아래 금액은 ${escHtml(shortYm(yms[lastI]))}월</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${grid}${xl}${lines}</svg>
+    ${legend}</div>`;
 }
 
 function escHtml(s){
