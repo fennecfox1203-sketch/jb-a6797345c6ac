@@ -246,7 +246,6 @@ header p{margin:6px 0 0;color:var(--muted);font-size:.86rem}
       <h1>엄궁 코오롱 공부방</h1>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-      <button id="syncBtn" type="button" style="padding:7px 12px;border-radius:10px;border:1px solid #3b82f6;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px;cursor:pointer">🔄 시트 동기화</button>
       <span id="syncStatus" style="font-size:11px;opacity:.75"></span>
     </div>
   </header>
@@ -3128,7 +3127,7 @@ async function syncFromSheet(silent){
 renderIssues();
 renderTotals();
 render();
-(function(){ const b=el('syncBtn'); if(b) b.onclick = ()=>syncFromSheet(false); })();
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') syncFromSheet(true); });
 syncFromSheet(true);
 </script>
 </body>
