@@ -1,0 +1,3256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="공부방장부"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="robots" content="noindex,nofollow"/>
+<link rel="apple-touch-icon" href="icon-180.png"/>
+<link rel="icon" href="icon-180.png"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#0b0f14"/>
+<title>공부방 장부</title>
+<style>
+:root{
+  --bg:#0b0f14; --card:#151b24; --card2:#1c2430; --line:#2a3444;
+  --text:#e8eef7; --muted:#8b97a8; --inc:#3dd68c; --exp:#ff6b7a; --fee:#6aa8ff;
+  --accent:#7c9cff; --tap:#222b3a; --warn:#ffb020;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  font-size:16px;line-height:1.45}
+body{min-height:100dvh;padding-bottom:88px}
+.wrap{max-width:520px;margin:0 auto;padding:16px 14px 24px;padding-bottom:96px}
+header{padding:8px 2px 14px}
+header.top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+header h1{margin:0;font-size:1.35rem;font-weight:700;letter-spacing:-.02em}
+header p{margin:6px 0 0;color:var(--muted);font-size:.86rem}
+.upload-btn{flex:0 0 auto;border:0;border-radius:12px;padding:10px 12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 4px 14px rgba(37,99,235,.35)}
+.upload-btn:active{transform:scale(.98);opacity:.92}
+.bank-upload-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card)}
+.bank-upload-row .bank-upload-copy{flex:1;min-width:0}
+.bank-upload-row .bank-upload-copy .t{font-weight:700;font-size:.92rem}
+.bank-upload-row .bank-upload-copy .s{margin-top:4px;color:var(--muted);font-size:.78rem;line-height:1.35}
+.panel .upload-status{margin:0 0 12px}
+.upload-status{margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:.84rem;color:var(--muted);line-height:1.4}
+.upload-status.ok{border-color:rgba(61,214,140,.35);color:var(--inc)}
+.upload-status.err{border-color:rgba(255,107,122,.4);color:var(--exp)}
+.upload-status b{color:var(--text);font-weight:700}
+.totals{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0 18px}
+.tot{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 10px;text-align:center}
+.tot .ym{font-size:.72rem;color:var(--muted);margin-bottom:2px}
+.tot .l{font-size:.72rem;color:var(--muted);margin-bottom:4px}
+.tot .v{font-size:1rem;font-weight:700;font-variant-numeric:tabular-nums}
+.tot.inc .v{color:var(--inc)} .tot.exp .v{color:var(--exp)} .tot.fee .v{color:var(--fee)}
+.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:5px;position:sticky;top:8px;z-index:20;backdrop-filter:blur(8px);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{flex:0 0 auto;border:0;background:transparent;color:var(--muted);padding:10px 10px;border-radius:10px;font-size:.86rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.tab.on{background:var(--tap);color:var(--text)}
+.tx-path{font-size:.72rem;color:var(--muted);margin-top:2px}
+.tx-path b{color:var(--text);font-weight:600}
+.cat-sum{font-size:.78rem;color:var(--muted);margin-top:2px}
+.bank-hint{margin:0 0 10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:.82rem;color:var(--muted);line-height:1.4}
+.panel{display:none;margin-top:14px}
+.panel.on{display:block}
+.row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.row:active{opacity:.85}
+.row .left{min-width:0}
+.row .ym{font-weight:700;font-size:1.02rem}
+.row .sub{color:var(--muted);font-size:.78rem;margin-top:3px}
+.row .right{text-align:right;font-variant-numeric:tabular-nums;font-size:.88rem;flex-shrink:0}
+.row .right div{margin:1px 0}
+.bar{display:flex;height:6px;border-radius:99px;overflow:hidden;background:#0e131a;margin-top:8px}
+.bar i{display:block;height:100%}
+.bar .i{background:var(--inc)} .bar .e{background:var(--exp)} .bar .f{background:var(--fee)}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--accent);font-weight:600;font-size:.92rem;margin:0 0 12px;cursor:pointer;border:0;background:0;padding:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.card h2{margin:0 0 10px;font-size:1.05rem}
+.metric{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.metric:last-child{border-bottom:0}
+.metric .n{color:var(--muted)}
+.metric .a.inc{color:var(--inc)} .metric .a.exp{color:var(--exp)} .metric .a.fee{color:var(--fee)} .metric .a.warn{color:var(--warn)}
+.tree-item{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.tree-item:last-child{border-bottom:0}
+.tree-item .head{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.tree-item .amt{font-variant-numeric:tabular-nums;color:var(--muted)}
+.tree-kids{display:none;padding-left:10px;border-left:2px solid var(--line);margin:6px 0 2px 6px}
+.tree-kids.open{display:block}
+.tree-kids .tree-item{background:var(--card2);border-radius:10px;margin:4px 0;border:1px solid transparent}
+.line{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.line:last-child{border-bottom:0}
+.line .m{color:var(--muted);font-size:.78rem}
+.line .a{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px;-webkit-overflow-scrolling:touch}
+.seg button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:8px 12px;font-size:.82rem;font-weight:600;cursor:pointer}
+.seg button.on{background:var(--accent);color:#0b0f14;border-color:var(--accent)}
+.seg button.on.warn{background:var(--warn);color:#0b0f14;border-color:var(--warn)}
+.search{width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--text);font-size:1rem;margin-bottom:10px;outline:none}
+.search:focus{border-color:var(--accent)}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.foot{position:static;margin-top:18px;background:transparent;border-top:1px solid var(--line);padding:14px 4px 8px;font-size:.75rem;color:var(--muted);text-align:center}
+.filt{display:flex;gap:6px;margin-bottom:10px}
+.filt button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:10px;padding:9px;font-size:.82rem;font-weight:600;cursor:pointer}
+.filt button.on{background:var(--tap);color:var(--text);border-color:#3a4660}
+.filt button.on.warn{color:var(--warn);border-color:#5a4a20}
+.filt button.on.ok{color:var(--inc);border-color:#1e4a35}
+
+.xbtn{border:1px solid var(--line);background:var(--card2);color:var(--muted);border-radius:8px;padding:6px 10px;font-size:.78rem;font-weight:600;cursor:pointer;flex-shrink:0}
+.xbtn:active{opacity:.8}
+.line{align-items:center}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;max-width:360px;width:100%}
+.modal h3{margin:0 0 8px;font-size:1.05rem}
+.modal p{margin:0 0 16px;color:var(--muted);font-size:.92rem;line-height:1.45}
+.modal .acts{display:flex;gap:8px}
+.modal .acts button{flex:1;border:0;border-radius:10px;padding:12px;font-size:.95rem;font-weight:700;cursor:pointer}
+.modal .cancel{background:var(--tap);color:var(--text)}
+.modal .ok{background:#5a3038;color:#ffb4bc}
+.modal label{display:block;font-size:.78rem;color:var(--muted);margin:10px 0 4px}
+.modal select,.modal input.cat-in{width:100%;box-sizing:border-box;background:var(--tap);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);font-size:.95rem}
+.tx-path{cursor:pointer}
+.tx-path:hover{color:var(--accent)}
+.tx-path.edited::after{content:' · 수정됨';font-weight:600;color:var(--accent)}
+.line .cat-edit{border:0;background:var(--tap);color:var(--muted);border-radius:8px;padding:4px 8px;font-size:.72rem;font-weight:600;cursor:pointer;margin-top:4px}
+.line .cat-edit:hover{color:var(--accent)}
+
+.excluded-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:.82rem;color:var(--muted)}
+.excluded-bar button{border:0;background:transparent;color:var(--accent);font-weight:600;font-size:.82rem;cursor:pointer}
+
+
+.goal-card{display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-bottom:12px}
+.goal-card .big{font-size:1.55rem;font-weight:800;letter-spacing:-.02em}
+.goal-card .sub{color:var(--muted);font-size:.82rem;margin-top:4px}
+.goal-card .dday{color:var(--warn);font-size:1.7rem;font-weight:800}
+.chart-wrap{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 10px 8px;margin-bottom:12px}
+.chart-wrap svg{width:100%;height:220px;display:block}
+.chart-legend{display:flex;flex-wrap:wrap;gap:10px 14px;padding:4px 6px 8px;font-size:.78rem;color:var(--muted)}
+.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.chart-wrap.bars.ytd .chart-legend{flex-wrap:nowrap;justify-content:center;gap:14px 18px;padding:10px 4px 6px;font-size:.95rem;font-weight:600;white-space:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chart-wrap.bars.ytd .chart-legend i{width:12px;height:12px;border-radius:3px}
+.prog{height:10px;background:var(--tap);border-radius:999px;overflow:hidden;margin-top:8px}
+.prog > span{display:block;height:100%;background:linear-gradient(90deg,#6aa8ff,#3dd68c);border-radius:999px}
+.month-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.month-row:last-child{border-bottom:0}
+.month-row .gap.warn{color:var(--warn)}
+.month-row .gap.ok{color:var(--inc)}
+
+
+.totals-head{color:var(--muted);font-size:.82rem;font-weight:600;margin:0 0 6px;padding:0 2px}
+.scope-bottom{margin:0;padding:8px 4px 0;color:var(--muted);font-size:.75rem;line-height:1.4;text-align:center}
+
+
+.donut-block{margin-bottom:12px}
+.donut-grid{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:center}
+@media (max-width:380px){.donut-grid{grid-template-columns:1fr;justify-items:center}}
+.donut-svg{width:140px;height:140px;display:block}
+.donut-legend{display:flex;flex-direction:column;gap:6px;min-width:0;width:100%}
+.donut-legend .item{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:start;font-size:.82rem}
+.donut-legend .sw{width:10px;height:10px;border-radius:2px;margin-top:4px}
+.donut-legend .name{color:var(--text);word-break:keep-all}
+.donut-legend .pct{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.donut-legend .sub{grid-column:2 / -1;display:flex;flex-direction:column;gap:3px;margin:2px 0 4px;padding-left:2px}
+.donut-legend .subrow{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:.75rem}
+.donut-empty{color:var(--muted);font-size:.85rem;padding:12px 0}
+.donut-legend .item.foldable{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.donut-legend .item.foldable{grid-template-columns:10px 1fr auto auto}
+.donut-legend .item.foldable .sub{display:none}
+.donut-legend .item.foldable.open .sub{display:flex}
+.donut-legend .detail-btn{border:0;background:0;color:var(--accent);font-size:.72rem;font-weight:600;padding:2px 0 0;cursor:pointer;white-space:nowrap;margin-top:2px}
+.donut-legend .item.foldable.open .detail-btn{color:var(--muted)}
+.detail-toggle{display:block;width:100%;margin:6px 0 4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--tap);color:var(--text);font-size:.88rem;font-weight:600;cursor:pointer;text-align:center}
+.detail-toggle:active{opacity:.85}
+.detail-panel[hidden]{display:none!important}
+
+
+.tot{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:border-color .15s, transform .12s}
+.tot:active{transform:scale(.98)}
+.tot.inc:active,.tot.inc:hover{border-color:var(--inc)}
+.tot.exp:active,.tot.exp:hover{border-color:var(--exp)}
+.tot.fee:active,.tot.fee:hover{border-color:var(--fee)}
+.chart-wrap{cursor:pointer;position:relative}
+.chart-wrap .chart-hint{position:absolute;right:10px;top:8px;font-size:.72rem;color:var(--muted)}
+.chart-wrap.bars.ytd .chart-hint{font-size:.82rem;font-weight:600}
+.chart-wrap.detail{cursor:default}
+.chart-wrap.home svg{height:auto;min-height:360px}
+.chart-wrap.bars{cursor:default}
+.chart-wrap.bars .chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;touch-action:pan-x;cursor:grab}
+.chart-wrap.bars .chart-scroll:active{cursor:grabbing}
+.chart-wrap.bars svg{height:260px;width:auto;max-width:none;min-width:0;display:block}
+.chart-wrap.bars.ytd{cursor:pointer;min-height:360px;overflow:visible}
+/* summary: last-9 fit ~640 viewBox, width 100%, no h-scroll; taller for readable labels */
+.chart-wrap.bars.ytd .chart-scroll{overflow-x:hidden;overflow-y:visible;touch-action:manipulation;cursor:pointer}
+.chart-wrap.bars.ytd svg{width:100%;height:auto;min-height:360px;max-width:100%;min-width:0;display:block}
+
+.month-row.go{cursor:pointer}
+.month-row.go:active{opacity:.75}
+
+
+.goal-card .card.go{cursor:pointer;transition:border-color .15s, transform .12s}
+.goal-card .card.go:active{transform:scale(.98)}
+.goal-card .card.go.fee:hover,.goal-card .card.go.fee:active{border-color:var(--fee)}
+.goal-card .card.go.dday:hover,.goal-card .card.go.dday:active{border-color:var(--warn)}
+.goal-card .card .hint{font-size:.72rem;color:var(--muted);margin-top:8px}
+
+
+.cal-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.cal-head .dd{color:var(--warn);font-size:1.4rem;font-weight:800}
+.cal-month{margin-bottom:14px}
+.cal-month h3{font-size:.95rem;margin:0 0 8px;font-weight:700}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;font-size:.7rem;color:var(--muted);text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-cell{aspect-ratio:1;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--tap);border:1px solid transparent;font-size:.82rem;font-variant-numeric:tabular-nums;user-select:none}
+.cal-cell.blank{visibility:hidden;pointer-events:none}
+.cal-cell.past{color:#ff8b8b;background:#1a1214;border-color:#3a2226;font-weight:700;font-size:1rem}
+.cal-cell.remain{color:transparent;background:#121820;border:1px dashed #2a3444}
+.cal-cell.remain .n{color:#6b778a;font-size:.72rem}
+.cal-cell.today{outline:2px solid var(--fee);outline-offset:0;color:var(--fee);background:#121a24}
+.cal-cell.today.past{color:#ff8b8b}
+.cal-cell.goal{background:rgba(245,166,35,.18);border-color:var(--warn);color:var(--warn);font-weight:800;box-shadow:0 0 0 1px rgba(245,166,35,.35)}
+.cal-cell.goal .n{color:var(--warn);font-size:.7rem;display:block;line-height:1.1;text-align:center}
+.cal-legend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:.78rem;color:var(--muted);padding:4px 2px 0}
+.cal-legend i{display:inline-flex;width:18px;height:18px;border-radius:6px;align-items:center;justify-content:center;margin-right:5px;vertical-align:middle;font-size:.75rem;font-style:normal}
+
+
+.stu-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.stu-card:active{opacity:.85}
+.stu-card .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.stu-card .name{font-weight:700;font-size:1.05rem}
+.stu-card .badge{font-size:.72rem;padding:2px 8px;border-radius:999px;background:var(--tap);color:var(--muted);white-space:nowrap}
+.stu-card .badge.on{background:rgba(61,214,140,.15);color:var(--inc)}
+.stu-card .badge.off{background:rgba(255,107,107,.12);color:var(--exp)}
+.stu-card .badge.wait{background:rgba(245,166,35,.12);color:var(--warn)}
+.stu-card .meta{margin-top:6px;font-size:.82rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
+.stu-card .amt{margin-top:8px;font-weight:700;color:var(--fee);font-variant-numeric:tabular-nums}
+.stu-search{width:100%;box-sizing:border-box;margin:0 0 10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--tap);color:var(--text);font-size:.95rem}
+.stu-detail .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.stu-detail .row:last-child{border-bottom:0}
+.stu-detail .k{color:var(--muted);flex:0 0 38%}
+.stu-detail .v{text-align:right;font-weight:600;word-break:break-all}
+.stu-sec{margin:14px 0 8px;padding:0 2px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.stu-sec .t{font-size:.95rem;font-weight:800;letter-spacing:-.01em}
+.stu-sec .n{font-size:.78rem;color:var(--muted)}
+.stu-sec.el .t{color:#7dd3a0}
+.stu-sec.mid .t{color:#6aa8ff}
+.stu-sec.hi .t{color:#c4a0ff}
+.stu-sec.other .t{color:var(--muted)}
+.stu-grade-tag{font-size:.72rem;color:var(--muted);font-weight:600;margin:8px 2px 6px}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <div>
+      <h1>엄궁 코오롱 공부방</h1>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+      <button id="syncBtn" type="button" style="padding:7px 12px;border-radius:10px;border:1px solid #3b82f6;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px;cursor:pointer">🔄 시트 동기화</button>
+      <span id="syncStatus" style="font-size:11px;opacity:.75"></span>
+    </div>
+  </header>
+  <input type="file" id="bankUploadInput" multiple accept=".csv,text/csv,.xlsx,.xls,.json,application/json,.jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+  <div class="totals-head" id="totalsHead"></div>
+  <div class="totals" id="totals"></div>
+  <div class="tabs">
+    <button class="tab on" data-tab="sales">목표</button>
+    <button class="tab" data-tab="students">학생</button>
+    <button class="tab" data-tab="fee">교습비</button>
+    <button class="tab" data-tab="months">수입지출</button>
+    <button class="tab" data-tab="suji">현금흐름</button>
+    <button class="tab" data-tab="bank">거래내역</button>
+  </div>
+  <div class="panel on" id="panel-sales"></div>
+  <div class="panel" id="panel-months"></div>
+  <div class="panel" id="panel-suji"></div>
+  <div class="panel" id="panel-fee"></div>
+  <div class="panel" id="panel-students"></div>
+  <div class="panel" id="panel-bank"></div>
+</div>
+<div class="foot" id="foot"></div>
+<script>
+const DATA = (function(){ try{ const c=JSON.parse(localStorage.getItem('jangbuCache')||'null'); if(c && c.monthDetails) return c; }catch(e){} return {title:'엄궁 코오롱 공부방',scope:'',note:'',updated:'',latestFeeMonth:'',totals:{income:0,expense:0,fee:0},months:[],monthDetails:{},suji:{},tuition:{},billMonths:[],enroll:{},students:[]}; })();
+const won = n => (n||0).toLocaleString('ko-KR') + '원';
+const shortYm = ym => {
+  const [y,m]=ym.split('-');
+  return `${y.slice(2)}.${Number(m)}`;
+};
+const koShortYm = ym => {
+  const [y,m]=ym.split('-');
+  return `${y.slice(2)}년${Number(m)}월`;
+};
+const el = id => document.getElementById(id);
+
+const BANK_UPLOAD_API = (window.LEDGER_BANK_UPLOAD_API || 'http://127.0.0.1:8787/api/upload-bank');
+const CAT_QUEUE_API = (window.LEDGER_CAT_QUEUE_API || 'http://127.0.0.1:8787/api/queue-cat-overrides');
+const CAT_PENDING_API = (window.LEDGER_CAT_PENDING_API || 'http://127.0.0.1:8787/api/pending-cat-overrides');
+async function queueCatOverrideItem(item){
+  try{
+    const res = await fetch(CAT_QUEUE_API, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ items: [item] })
+    });
+    if(!res.ok) return { ok:false, status: res.status };
+    const data = await res.json().catch(()=>null);
+    return { ok:true, data };
+  }catch(err){
+    return { ok:false, error: String(err && err.message || err) };
+  }
+}
+async function checkPendingCatOverrides(){
+  try{
+    const res = await fetch(CAT_PENDING_API);
+    if(!res.ok){
+      setUploadStatus('분류 시트 대기 확인 실패 · HTTP '+res.status, 'err');
+      return;
+    }
+    const data = await res.json();
+    const n = (data && data.items && data.items.length) || 0;
+    const st = (data && data.status) || 'pending';
+    setUploadStatus(
+      '분류 수정 시트 대기 <b>'+n+'</b>건 · 상태 '+st
+      +'. Master에게 «분류 시트 반영»이라고 하면 구글 시트에 씁니다. (아직 시트에 쓰지 않았습니다.)',
+      n ? 'ok' : ''
+    );
+  }catch(err){
+    setUploadStatus('분류 시트 대기 확인 실패 · 서버에 연결할 수 없어요.', 'err');
+  }
+}
+function setUploadStatus(msg, kind){
+  window.__bankUploadStatus = msg ? { msg, kind: kind || '' } : null;
+  const box = el('uploadStatus');
+  if(!box) return;
+  box.hidden = !msg;
+  box.className = 'upload-status' + (kind ? ' '+kind : '');
+  box.innerHTML = msg || '';
+}
+function bindBankUpload(){
+  const btn = el('bankUploadBtn');
+  const input = el('bankUploadInput');
+  if(!btn || !input) return;
+  btn.onclick = ()=> input.click();
+  if(window.__bankUploadStatus){
+    const st = window.__bankUploadStatus;
+    const box = el('uploadStatus');
+    if(box){
+      box.hidden = !st.msg;
+      box.className = 'upload-status' + (st.kind ? ' '+st.kind : '');
+      box.innerHTML = st.msg || '';
+    }
+  }
+  if(input.dataset.bound === '1') return;
+  input.dataset.bound = '1';
+  input.onchange = async ()=>{
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if(!files.length) return;
+
+    const isBank = f => /\.(csv|xlsx|xls)$/i.test(f.name);
+    const isJson = f => /\.json$/i.test(f.name);
+    const isImg = f => /\.(jpg|jpeg|png|webp|bmp|tif|tiff|pdf)$/i.test(f.name) || (f.type||'').startsWith('image/') || f.type==='application/pdf';
+    const isDongName = f => /동백|dong/i.test(f.name);
+
+    const banks = files.filter(isBank);
+    const jsons = files.filter(isJson);
+    const imgs = files.filter(f => !isBank(f) && !isJson(f) && isImg(f));
+    const other = files.filter(f => !isBank(f) && !isJson(f) && !isImg(f));
+
+    if(banks.length !== 1){
+      setUploadStatus('통장 파일은 CSV 또는 엑셀(.xlsx) <b>한 개</b>를 꼭 골라 주세요.'+(banks.length? ' (지금 '+banks.length+'개)' : ''), 'err');
+      return;
+    }
+    const bank = banks[0];
+    if(/\.xls$/i.test(bank.name) && !/\.xlsx$/i.test(bank.name)){
+      setUploadStatus('<b>'+bank.name+'</b> · 구형 .xls는 안 됩니다. .xlsx 또는 CSV로 저장해 주세요.', 'err');
+      return;
+    }
+
+    let card = null, dong = null;
+    jsons.forEach(f=>{
+      if(isDongName(f) && !dong) dong = f;
+      else if(!card) card = f;
+      else if(!dong) dong = f;
+    });
+    if(!dong && jsons.length >= 2){
+      card = jsons[0];
+      dong = jsons[1];
+    }
+
+    const names = [bank.name].concat(card? [card.name]:[]).concat(dong? [dong.name]:[]).concat(imgs.map(f=>f.name));
+    setUploadStatus('<b>'+names.join(' · ')+'</b> 올리는 중…'+(imgs.length? '<br/>이미지 '+imgs.length+'장 서버 OCR 중(첫 장은 조금 걸릴 수 있어요)':'') );
+
+    try{
+      const body = new FormData();
+      body.append('bank', bank, bank.name);
+      if(card) body.append('card', card, card.name);
+      if(dong) body.append('dong', dong, dong.name);
+      imgs.forEach(f => body.append('evidence', f, f.name));
+      const res = await fetch(BANK_UPLOAD_API, { method:'POST', body });
+      const text = await res.text();
+      let data = null;
+      try{ data = JSON.parse(text); }catch(_){}
+      if(!res.ok){
+        const detail = (data && (data.detail || data.message)) || text.slice(0,160) || res.statusText;
+        setUploadStatus('<b>'+bank.name+'</b> 업로드 실패 · '+detail, 'err');
+        return;
+      }
+      const incN = (data && data.income_expense && data.income_expense.rows && data.income_expense.rows.length) || 0;
+      const feeN = (data && data.tuition && data.tuition.rows && data.tuition.rows.length) || 0;
+      const qn = (data && data.question_pending) || 0;
+      const inn = (data && data.inputs) || {};
+      window.__lastBankUpload = { file:bank.name, card: card&&card.name, dong: dong&&dong.name, images: imgs.map(f=>f.name), data, at: Date.now() };
+      const sa = (data && data.sheet_apply) || {};
+      const upN = sa.updates || 0;
+      const apN = sa.appends || 0;
+      const sqN = sa.skipped_questions || 0;
+      const saLine = (sa.status && sa.status !== 'error')
+        ? ('<br/>시트 반영 계획 준비됨 · 업데이트 '+upN+'건 · 추가 '+apN+'건'
+           +(sqN? ' · 질문 스킵 '+sqN+'건' : '')
+           +'. 마스터에게 «시트 반영»이라고 말해 주세요. (아직 시트에 쓰지 않았습니다.)')
+        : (sa.status === 'error'
+           ? ('<br/>시트 반영 계획 생성 실패 · '+(sa.error || '오류')+' · 분석 결과는 유지됩니다.')
+           : '<br/>시트 반영은 마스터에게 «시트 반영»을 요청해 주세요. (아직 시트에 쓰지 않았습니다.)');
+      setUploadStatus(
+        '<b>'+bank.name+'</b> 분석 완료 · 수입지출 '+incN+'건 · 교습비 '+feeN+'건'
+        +(qn? ' · 확인 질문 '+qn+'개' : '')
+        +(inn.card_rows? ' · 카드힌트 '+inn.card_rows+'건' : '')
+        +(inn.dong_rows? ' · 동백힌트 '+inn.dong_rows+'건' : '')
+        +(inn.ocr_card_rows || inn.ocr_dong_rows ? ' · OCR 카드 '+(inn.ocr_card_rows||0)+'/동백 '+(inn.ocr_dong_rows||0) : (imgs.length? ' · 이미지 '+imgs.length+'장' : ''))
+        +(other.length? ' · 기타 '+other.length+'개 제외' : '')
+        +'.'
+        +saLine,
+        'ok'
+      );
+    }catch(err){
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{ sessionStorage.setItem('pendingBankUpload', JSON.stringify({name: bank.name, text: reader.result, at: Date.now()})); }catch(_){}
+        setUploadStatus('<b>'+bank.name+'</b> 선택됨 · 분석 서버 연결 전이어서 파일만 받아 두었어요. 채팅에 같은 파일을 보내 주시면 이어서 시트에 반영할게요.', 'err');
+      };
+      reader.readAsText(bank);
+    }
+  };
+}
+
+let state = { tab:'sales', month:null, view:'list', salesView:'list', sujiView:'list', feeMonth:null, bankMonth:null, bankCat:'', dirFilt:'all', feeFilt:'unpaid', stuFilt:'재학', stuName:null, stuFlowYm:null, stuView:'list', q:'', confirm:null, showExcluded:false, bankEdit:null };
+const EX_KEY = 'jangbu_unpaid_excluded_v1';
+function loadExcluded(){
+  try { return JSON.parse(localStorage.getItem(EX_KEY) || '{}') || {}; }
+  catch(e){ return {}; }
+}
+function saveExcluded(map){ localStorage.setItem(EX_KEY, JSON.stringify(map)); }
+const CAT_OVR_KEY = 'jangbu_bank_cat_overrides_v1';
+function loadCatOverrides(){
+  try { return JSON.parse(localStorage.getItem(CAT_OVR_KEY) || '{}') || {}; }
+  catch(e){ return {}; }
+}
+function saveCatOverrides(map){ localStorage.setItem(CAT_OVR_KEY, JSON.stringify(map)); }
+function bankLinesRaw(ym){ return (DATA.monthDetails[ym]||[]); }
+function bankLinesForMonth(ym){
+  const map = loadCatOverrides();
+  return bankLinesRaw(ym).map((l,i)=>{
+    const key = ym + '#' + i;
+    const o = map[key];
+    const base = Object.assign({}, l, { _bankKey:key, _bankIdx:i });
+    if(!o) return base;
+    return Object.assign(base, {
+      dir: o.dir != null ? o.dir : l.dir,
+      cat2: o.cat2 != null ? o.cat2 : l.cat2,
+      cat3: o.cat3 != null ? o.cat3 : l.cat3,
+      _edited: true
+    });
+  });
+}
+function bankCatCatalog(){
+  const byDir = {};
+  const add = (d,c2,c3)=>{
+    if(!d) return;
+    if(!byDir[d]) byDir[d] = {};
+    const k2 = c2 || '-';
+    if(!byDir[d][k2]) byDir[d][k2] = new Set();
+    byDir[d][k2].add(c3 || '-');
+  };
+  Object.keys(DATA.monthDetails||{}).forEach(ym=>{
+    bankLinesForMonth(ym).forEach(l=> add(l.dir, l.cat2, l.cat3));
+  });
+  const out = {};
+  Object.keys(byDir).forEach(d=>{
+    out[d] = {};
+    Object.keys(byDir[d]).sort().forEach(c2=>{
+      out[d][c2] = [...byDir[d][c2]].sort();
+    });
+  });
+  return out;
+}
+
+function exKey(ym, name){ return ym + '|' + name; }
+function isExcluded(ym, name){ return !!loadExcluded()[exKey(ym,name)]; }
+function excludePair(ym, name){
+  const m = loadExcluded();
+  m[exKey(ym,name)] = { ym, name, at: new Date().toISOString() };
+  saveExcluded(m);
+}
+function restorePair(ym, name){
+  const m = loadExcluded();
+  delete m[exKey(ym,name)];
+  saveExcluded(m);
+}
+function excludedForMonth(ym){
+  return Object.values(loadExcluded()).filter(x => x.ym === ym);
+}
+
+
+document.getElementById('foot').innerHTML =
+  '<div class="scope-bottom">' + DATA.scope + ' · ' + DATA.note + '</div>' +
+  '<div class="scope-bottom" style="opacity:.85;margin-top:4px">업데이트 ' + DATA.updated + ' · 미납=재학 명단−해당월 입금 · 시트 읽기 전용</div>';
+
+function prevYmSeoul(){
+  const cur = currentYmSeoul();
+  let [y,m] = cur.split('-').map(Number);
+  m -= 1;
+  if(m < 1){ m = 12; y -= 1; }
+  return y + '-' + String(m).padStart(2,'0');
+}
+
+function longYmLabel(ym){
+  const [y,m] = ym.split('-');
+  return `${y}년 ${Number(m)}월`;
+}
+
+function renderTotals(){
+  const ym = prevYmSeoul();
+  const m = (DATA.months||[]).find(x=>x.ym===ym) || {income:0, expense:0, fee:0};
+  const feePaid = ((DATA.tuition||{})[ym]||{}).paidTotal || 0; // 교습비 현황(납부대상월)
+  const lab = longYmLabel(ym);
+  const head = el('totalsHead');
+  if(head) head.textContent = lab;
+  el('totals').innerHTML = `
+    <div class="tot inc" data-nav="inc" title="수입 리포트 (매출)"><div class="l">수입</div><div class="v">${won(m.income||0)}</div></div>
+    <div class="tot exp" data-nav="exp" title="지출 리포트 (매출)"><div class="l">지출</div><div class="v">${won(m.expense||0)}</div></div>
+    <div class="tot fee" data-nav="fee" title="교습비 납부·미납 리포트 (매출)"><div class="l">교습비</div><div class="v">${won(feePaid)}</div></div>`;
+  const tot = el('totals');
+  if(tot && !tot._navBound){
+    tot._navBound = true;
+    tot.addEventListener('click', (e)=>{
+      const t = e.target.closest('.tot');
+      if(!t) return;
+      const ym = prevYmSeoul();
+      const nav = t.dataset.nav;
+      if(nav==='inc') goHomeIncReport(ym);
+      else if(nav==='exp') goHomeExpReport(ym);
+      else if(nav==='fee') goHomeFeePayReport(ym);
+    });
+  }
+}
+
+function applyTabUI(){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===state.tab));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on', p.id==='panel-'+state.tab));
+}
+
+function setTab(name){
+  state.tab=name; state.view='list'; state.month=null; state.salesView='list'; state.sujiView='list'; state.stuName=null; state.stuFlowYm=null; state.stuView='list';
+  if(name==='fee'){ state.feeFilt='unpaid'; state.feeMonth='__all_unpaid__'; state.q=''; state.showExcluded=false; state.confirm=null; }
+  if(name==='months'){ state.dirFilt='all'; state.q=''; }
+  if(name==='students'){ state.stuFilt='재학'; state.q=''; }
+  if(name==='bank'){
+    const keys = Object.keys(DATA.monthDetails||{}).sort();
+    if(!state.bankMonth || !keys.includes(state.bankMonth)) state.bankMonth = keys.length ? keys[keys.length-1] : null;
+    state.dirFilt='all'; state.bankCat=''; state.q='';
+  }
+  applyTabUI();
+  render();
+}
+
+function goMonthDetail(ym, dirFilt){
+  state.tab='months';
+  state.view='detail';
+  state.month=ym;
+  state.dirFilt=dirFilt||'all';
+  state.q='';
+  state.salesView='list';
+  applyTabUI();
+  render();
+}
+
+function goFeeMonth(ym){
+  state.tab='fee';
+  state.feeMonth=ym;
+  state.feeFilt= isFeeMonthOpen(ym) ? 'unpaid' : 'paid';
+  state.q='';
+  state.showExcluded=false;
+  state.confirm=null;
+  state.salesView='list';
+  applyTabUI();
+  render();
+}
+
+function goStudentDetail(name){
+  if(!name) return;
+  const s = (typeof studentByName==='function') ? studentByName(name) : ((DATA.students||[]).find(x=>x && x.name===name)||null);
+  state.tab='students';
+  state.stuName=name;
+  state.stuView='list';
+  state.stuFlowYm=null;
+  state.stuFilt = (s && s.bucket) ? s.bucket : '전체';
+  state.q='';
+  state.confirm=null;
+  applyTabUI();
+  render();
+}
+
+function goSalesChartDetail(){
+  state.tab='sales';
+  state.salesView='detail';
+  applyTabUI();
+  render();
+}
+
+function goMonthsChartDetail(){
+  state.tab='months';
+  state.view='chartDetail';
+  state.month=null;
+  applyTabUI();
+  render();
+}
+
+function goSujiChartDetail(){
+  state.tab='suji';
+  state.sujiView='chartDetail';
+  applyTabUI();
+  render();
+}
+
+function goStudentChartDetail(){
+  state.tab='students';
+  state.stuView='chartDetail';
+  state.stuName=null;
+  state.stuFlowYm=null;
+  applyTabUI();
+  render();
+}
+
+function ytdYmStart(){
+  // kept name for call sites; summary window is last 9 months ending at endYm
+  return null;
+}
+
+/** Keep the last 9 months through endYm (inclusive). */
+function filterYtdYms(sortedYms, endYm){
+  const list = (sortedYms || []).filter(Boolean).slice().sort();
+  let end = endYm;
+  if(!end) end = list.length ? list[list.length - 1] : '';
+  if(!end) return [];
+  const upto = list.filter(ym => ym <= end);
+  return upto.slice(-9);
+}
+
+
+function goSalesFeeDonut(ym){
+  state.tab='sales';
+  state.salesView='feeDonut';
+  state.feeMonth = ym || currentYmSeoul();
+  applyTabUI();
+  render();
+}
+
+function goHomeIncReport(ym){
+  state.tab='sales';
+  state.salesView='incReport';
+  state.month = ym || prevYmSeoul();
+  applyTabUI();
+  render();
+}
+
+function goHomeExpReport(ym){
+  state.tab='sales';
+  state.salesView='expReport';
+  state.month = ym || prevYmSeoul();
+  applyTabUI();
+  render();
+}
+
+function goHomeFeePayReport(ym){
+  state.tab='sales';
+  state.salesView='feePayReport';
+  state.feeMonth = ym || prevYmSeoul();
+  applyTabUI();
+  render();
+}
+
+function buildIncGradeKids(ym){
+  const lines = (DATA.monthDetails[ym]||[]).filter(x=>x.dir==='수입');
+  const byName = {};
+  (DATA.students||[]).forEach(s=>{ byName[s.name]=s; });
+  const order = ['초등','중등','고등','기타'];
+  const buckets = {};
+  order.forEach(g=> buckets[g] = {name:g, amt:0, kids:{}});
+  lines.forEach(l=>{
+    const amt = Number(l.amt)||0;
+    const isFee = l.cat2==='교습비' || l.cat3==='교습비';
+    let grade = '기타';
+    let kidLabel;
+    if(isFee){
+      const st = byName[l.student];
+      const g1 = st && st.grade1;
+      if(g1==='초등'||g1==='중등'||g1==='고등') grade = g1;
+      else grade = '기타';
+      kidLabel = l.student || l.memo || '학생';
+    } else {
+      grade = '기타';
+      kidLabel = l.cat2 || l.cat3 || l.memo || l.student || '기타 수입';
+    }
+    buckets[grade].amt += amt;
+    buckets[grade].kids[kidLabel] = (buckets[grade].kids[kidLabel]||0) + amt;
+  });
+  return order.map(g=>{
+    const b = buckets[g];
+    return {
+      name: b.name,
+      amt: b.amt,
+      kids: Object.entries(b.kids).map(([name,amt])=>({name, amt}))
+        .sort((a,b)=>Math.abs(b.amt)-Math.abs(a.amt))
+    };
+  });
+}
+
+function openGoalCalendar(){
+  state.tab='sales';
+  state.salesView='ddayCal';
+  applyTabUI();
+  render();
+}
+
+function ymListInclusive(fromYm, toYm){
+  const out=[];
+  let [y,m]=fromYm.split('-').map(Number);
+  const [ty,tm]=toYm.split('-').map(Number);
+  while(y<ty || (y===ty && m<=tm)){
+    out.push(String(y)+'-'+String(m).padStart(2,'0'));
+    m+=1; if(m>12){ m=1; y+=1; }
+  }
+  return out;
+}
+
+function buildDdayMonthHtml(ym, todayYmd, deadlineYmd){
+  const [y,m]=ym.split('-').map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const startDow = new Date(Date.UTC(y, m-1, 1)).getUTCDay(); // 0=일
+  const cells=[];
+  for(let i=0;i<startDow;i++) cells.push('<div class="cal-cell blank"></div>');
+  for(let d=1;d<=daysInMonth;d++){
+    const ymd = ym+'-'+String(d).padStart(2,'0');
+    if(ymd > deadlineYmd){
+      cells.push('<div class="cal-cell blank"></div>');
+      continue;
+    }
+    const isPast = ymd < todayYmd;
+    const isToday = ymd === todayYmd;
+    const isGoal = ymd === deadlineYmd;
+    let cls='cal-cell';
+    let inner='';
+    if(isGoal){
+      cls += ' goal';
+      inner = '<span class="n">'+d+'<br>목표</span>';
+    } else if(isPast){
+      cls += ' past'+(isToday?' today':'');
+      inner = '✕';
+    } else if(isToday){
+      cls += ' today remain';
+      inner = '<span class="n">'+d+'</span>';
+    } else {
+      cls += ' remain';
+      inner = '<span class="n">'+d+'</span>';
+    }
+    cells.push('<div class="'+cls+'" title="'+ymd+'">'+inner+'</div>');
+  }
+  const title = y+'년 '+m+'월';
+  return `<div class="cal-month">
+    <h3>${title}</h3>
+    <div class="cal-dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+    <div class="cal-grid">${cells.join('')}</div>
+  </div>`;
+}
+
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+
+function monthBar(m){
+  const inc=Math.abs(Number(m.income)||0);
+  const exp=Math.abs(Number(m.expense)||0);
+  const s=inc+exp || 1;
+  return `<div class="bar"><i class="i" style="width:${inc/s*100}%"></i><i class="e" style="width:${exp/s*100}%"></i></div>`;
+}
+
+
+const DONUT_COLORS = [
+  '#6aa8ff','#ff6b7a','#3dd68c','#ffb020','#c084fc','#22d3ee',
+  '#f472b6','#a3e635','#fb923c','#818cf8','#34d399','#e879f9',
+  '#94a3b8','#facc15','#38bdf8'
+];
+
+function monthSujiParts(ym){
+  const tree = (DATA.suji && DATA.suji[ym]) || [];
+  const inc = tree.find(x=>x.name==='수입') || {amt:0, kids:[]};
+  const exp = tree.find(x=>x.name==='지출') || {amt:0, kids:[]};
+  return {inc, exp};
+}
+
+function donutSlices(kids){
+  // 절대값 기준 비중. 0·음수만 있으면 빈 배열.
+  const parts = (kids||[]).map(k=>({
+    name: k.name || '기타',
+    amt: Number(k.amt)||0,
+    abs: Math.abs(Number(k.amt)||0),
+    kids: k.kids||[]
+  })).filter(k=>k.abs>0);
+  parts.sort((a,b)=>b.abs-a.abs);
+  const total = parts.reduce((s,p)=>s+p.abs,0);
+  return {parts, total};
+}
+
+function donutSVG(parts, total, colors){
+  const size=140, cx=70, cy=70, R=54, r=32;
+  if(!total || !parts.length){
+    return `<svg class="donut-svg" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2a3444" stroke-width="18"/><text x="${cx}" y="${cy+4}" text-anchor="middle" fill="#8b97a8" font-size="11">없음</text></svg>`;
+  }
+  let ang = -Math.PI/2;
+  const arcs=[];
+  parts.forEach((p,i)=>{
+    const sweep = (p.abs/total)*Math.PI*2;
+    const a0=ang, a1=ang+sweep;
+    ang=a1;
+    const large = sweep > Math.PI ? 1 : 0;
+    const x0=cx+R*Math.cos(a0), y0=cy+R*Math.sin(a0);
+    const x1=cx+R*Math.cos(a1), y1=cy+R*Math.sin(a1);
+    const ix0=cx+r*Math.cos(a1), iy0=cy+r*Math.sin(a1);
+    const ix1=cx+r*Math.cos(a0), iy1=cy+r*Math.sin(a0);
+    const d=`M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${ix0} ${iy0} A ${r} ${r} 0 ${large} 0 ${ix1} ${iy1} Z`;
+    arcs.push(`<path d="${d}" fill="${colors[i%colors.length]}"/>`);
+  });
+  return `<svg class="donut-svg" viewBox="0 0 ${size} ${size}" role="img">${arcs.join('')}<circle cx="${cx}" cy="${cy}" r="${r-0.5}" fill="var(--card)"/></svg>`;
+}
+
+function donutLegend(parts, total, colors){
+  if(!parts.length) return `<div class="donut-empty">항목 없음</div>`;
+  return `<div class="donut-legend">${parts.map((p,i)=>{
+    const pct = total ? (p.abs/total*100) : 0;
+    const pctTxt = (pct>=10 || pct===0) ? pct.toFixed(0) : pct.toFixed(1);
+    const subs = (p.kids||[]).filter(k=>Math.abs(Number(k.amt)||0)>0)
+      .sort((a,b)=>Math.abs(b.amt)-Math.abs(a.amt))
+      .map(k=>{
+        const ka=Math.abs(Number(k.amt)||0);
+        const kp=total?(ka/total*100):0;
+        const kt=(kp>=10||kp===0)?kp.toFixed(0):kp.toFixed(1);
+        return `<div class="subrow"><span>${k.name}</span><span>${won(k.amt)} · ${kt}%</span></div>`;
+      }).join('');
+    return `<div class="item">
+      <span class="sw" style="background:${colors[i%colors.length]}"></span>
+      <div class="name">${p.name}<div style="color:var(--muted);font-size:.75rem;margin-top:1px">${won(p.amt)}</div></div>
+      <div class="pct">${pctTxt}%</div>
+      ${subs?`<div class="sub">${subs}</div>`:''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function donutBlock(title, kids, colorOffset){
+  // 모든 도넛: 옆 상세는 접고, 항목/상세 버튼으로만 펼침
+  return donutBlockFoldable(title, kids, colorOffset);
+}
+
+function donutLegendFoldable(parts, total, colors){
+  if(!parts.length) return `<div class="donut-empty">항목 없음</div>`;
+  return `<div class="donut-legend">${parts.map((p,i)=>{
+    const pct = total ? (p.abs/total*100) : 0;
+    const pctTxt = (pct>=10 || pct===0) ? pct.toFixed(0) : pct.toFixed(1);
+    const kids = (p.kids||[]).filter(k=>Math.abs(Number(k.amt)||0)>0)
+      .sort((a,b)=>Math.abs(b.amt)-Math.abs(a.amt));
+    const subs = kids.map(k=>{
+      const ka=Math.abs(Number(k.amt)||0);
+      const kp=total?(ka/total*100):0;
+      const kt=(kp>=10||kp===0)?kp.toFixed(0):kp.toFixed(1);
+      return `<div class="subrow"><span>${k.name}</span><span>${won(k.amt)} · ${kt}%</span></div>`;
+    }).join('');
+    const detailCtrl = kids.length
+      ? `<button type="button" class="detail-btn" aria-label="상세보기">상세</button>`
+      : `<span></span>`;
+    return `<div class="item foldable" data-fold="${i}">
+      <span class="sw" style="background:${colors[i%colors.length]}"></span>
+      <div class="name">${p.name}<div style="color:var(--muted);font-size:.75rem;margin-top:1px">${won(p.amt)}</div></div>
+      <div class="pct">${pctTxt}%</div>
+      ${detailCtrl}
+      ${subs?`<div class="sub">${subs}</div>`:''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function donutBlockFoldable(title, kids, colorOffset){
+  const {parts, total} = donutSlices(kids);
+  const colors = DONUT_COLORS.map((_,i)=>DONUT_COLORS[(i+(colorOffset||0))%DONUT_COLORS.length]);
+  return `<div class="donut-block card">
+    <h2>${title}${total?` · ${won(total)}`:''}</h2>
+    <div class="donut-grid">
+      ${donutSVG(parts, total, colors)}
+      ${donutLegendFoldable(parts, total, colors)}
+    </div>
+  </div>`;
+}
+
+function bindFoldableLegend(root){
+  const scope = root || document;
+  scope.querySelectorAll('.donut-legend').forEach(legend=>{
+    legend.querySelectorAll('.item.foldable').forEach(item=>{
+      item.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const wasOpen = item.classList.contains('open');
+        legend.querySelectorAll('.item.foldable.open').forEach(x=>x.classList.remove('open'));
+        legend.querySelectorAll('.item.foldable .detail-btn').forEach(b=>{ b.textContent='상세'; });
+        if(!wasOpen){
+          item.classList.add('open');
+          const btn = item.querySelector('.detail-btn');
+          if(btn) btn.textContent='접기';
+        }
+      });
+    });
+  });
+}
+
+function bindDetailPanel(toggleId, panelId){
+  const btn = el(toggleId);
+  const panel = el(panelId);
+  if(!btn || !panel) return;
+  btn.onclick = (e)=>{
+    e.stopPropagation();
+    const open = panel.hasAttribute('hidden');
+    if(open){ panel.removeAttribute('hidden'); btn.textContent='접기'; }
+    else { panel.setAttribute('hidden',''); btn.textContent='상세보기'; }
+  };
+}
+
+
+function monthsChartMonths(limit){
+  const all = [...(DATA.months||[])].map(m=>m.ym).filter(Boolean).sort();
+  if(limit && all.length > limit) return all.slice(-limit);
+  return all;
+}
+
+function buildMonthsLineChart(opts){
+  // summary: 최근 9개월 · 고정 ~640 viewBox · declutter · 스크롤 없음. detail: 전체 월 + 좌우 스크롤.
+  const summary = !!(opts && opts.summary);
+  const showValues = opts && opts.showValues !== false;
+  let yms = monthsChartMonths(null);
+  if(summary) yms = filterYtdYms(yms);
+  const byYm = {};
+  (DATA.months||[]).forEach(m=>{ byYm[m.ym]=m; });
+  const points = yms.map(ym=>{
+    const m = byYm[ym] || {ym, income:0, expense:0, fee:0};
+    return {
+      ym,
+      income: Math.abs(Number(m.income)||0),
+      expense: Math.abs(Number(m.expense)||0)
+    };
+  });
+  const n = yms.length || 1;
+  const padL = summary ? 32 : 48, padR = summary ? 10 : 28, padT = summary ? 58 : 36, padB = summary ? 40 : 44;
+  const H = summary ? 420 : 260;
+  const visibleN = (opts && opts.visible != null) ? opts.visible : 6;
+  let slot, plotW, W, scrollLeft;
+  if(summary){
+    W = 640;
+    plotW = W - padL - padR;
+    slot = plotW / n;
+    scrollLeft = 0;
+  } else {
+    slot = 56;
+    plotW = Math.max(n * slot, visibleN * slot);
+    W = padL + plotW + padR;
+    scrollLeft = Math.max(0, (n - visibleN) * slot);
+  }
+  const plotH = H - padT - padB;
+  const maxV = Math.max(1, ...points.flatMap(p=>[p.income,p.expense]));
+  const axisMax = Math.max(maxV * 1.14, 1000000);
+  const xAt = i => padL + slot/2 + i * slot;
+  const yAt = v => padT + plotH * (1 - Math.min(v, axisMax) / axisMax);
+  const tickFracs = summary ? [0, 1] : [0, 0.25, 0.5, 0.75, 1];
+  const tickVals = tickFracs.map(t=>Math.round(axisMax*t/10000)*10000);
+  const yTicks = tickVals.map(v=>{
+    const y = yAt(v);
+    return `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#2a3444" stroke-width="1"/>
+      <text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b97a8" font-size="${summary?15:10}">${axisLabel(v)}</text>`;
+  }).join('');
+
+  const labelPos = points.map((p,i)=>{
+    const yi = yAt(p.income), ye = yAt(p.expense);
+    const gap = Math.abs(yi - ye);
+    const close = gap < (summary ? 36 : 22);
+    const incAbove = p.income >= p.expense;
+    const out = {
+      income: { y: yi + (incAbove ? -14 : 18), x: xAt(i) + (close ? (incAbove ? -6 : 6) : 0) },
+      expense: { y: ye + (incAbove ? 18 : -14), x: xAt(i) + (close ? (incAbove ? 6 : -6) : 0) }
+    };
+    out.income.y = Math.min(H - 22, Math.max(padT - 4, out.income.y));
+    out.expense.y = Math.min(H - 22, Math.max(padT - 4, out.expense.y));
+    return out;
+  });
+
+  function haloText(x, y, fill, text){
+    const fs = summary ? 17 : 10;
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" fill="${fill}" font-size="${fs}" font-weight="700" stroke="#0b0f14" stroke-width="4" paint-order="stroke" style="paint-order:stroke fill">${text}</text>`;
+  }
+
+  function polyFor(key, color){
+    const pts = points.map((p,i)=>`${xAt(i).toFixed(1)},${yAt(p[key]).toFixed(1)}`).join(' ');
+    const dots = points.map((p,i)=>{
+      const label = String(Number(p.ym.slice(5)));
+      const lp = labelPos[i][key];
+      const fill = key==='income' ? 'var(--inc)' : 'var(--exp)';
+      const valLab = showValues ? haloText(lp.x, lp.y, fill, String(Math.round(p[key]/10000))) : '';
+      const mFs = summary ? 16 : 10;
+      const mLab = (key==='expense') ? `<text x="${xAt(i).toFixed(1)}" y="${H-12}" text-anchor="middle" fill="#8b97a8" font-size="${mFs}">${label}</text>` : '';
+      const r = summary ? 5.2 : 3.5;
+      const dot = `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p[key]).toFixed(1)}" r="${r}" fill="${color}" stroke="#0b0f14" stroke-width="1.2"/>`;
+      return `${dot}${valLab}${mLab}`;
+    }).join('');
+    const sw = summary ? 3.5 : 2.4;
+    return `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+  }
+  const body = polyFor('income','var(--inc)') + polyFor('expense','var(--exp)');
+  const hits = points.map((p,i)=>{
+    const x = padL + i * slot;
+    return `<rect class="months-hit" data-ym="${p.ym}" x="${x}" y="${padT}" width="${slot}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+  }).join('');
+  const svgSize = summary
+    ? `viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet"`
+    : `viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="xMinYMid meet"`;
+  return {
+    yms, points, scrollLeft, slot, padL, summary,
+    svg: `<svg ${svgSize} role="img" aria-label="월별 수입·지출 꺾은선">${yTicks}${body}${hits}</svg>`
+  };
+}
+
+function renderMonths(){
+  const p=el('panel-months');
+  if(state.view==='chartDetail'){
+    const mChart = buildMonthsLineChart({showValues:true});
+    p.innerHTML = `
+      <button class="back" id="backMChart">← 월 목록</button>
+      <div class="card">
+        <h2 style="margin:0">수입·지출 그래프</h2>
+        <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">전체 월 · 좌우 스크롤 · 점/월 탭 → 해당 월 상세 · 숫자 단위 만 원</div>
+      </div>
+      <div class="chart-wrap bars" id="monthsDetailChart">
+        <div class="chart-hint">좌우 스크롤</div>
+        <div class="chart-scroll" id="monthsDetailScroll">${mChart.svg}</div>
+        <div class="chart-legend">
+          <span><i style="background:var(--inc)"></i>수입</span>
+          <span><i style="background:var(--exp)"></i>지출</span>
+        </div>
+      </div>`;
+    el('backMChart').onclick=()=>{ state.view='list'; state.month=null; render(); };
+    const msc = el('monthsDetailScroll');
+    if(msc){
+      const goRight = ()=>{ msc.scrollLeft = Math.max(0, msc.scrollWidth - msc.clientWidth); };
+      goRight();
+      requestAnimationFrame(()=>requestAnimationFrame(goRight));
+      if(typeof bindChartHDrag === 'function') bindChartHDrag(msc);
+      msc.querySelectorAll('.months-hit').forEach(h=>{
+        h.addEventListener('click', e=>{
+          e.stopPropagation();
+          const ym = h.getAttribute('data-ym');
+          if(!ym) return;
+          state.month=ym; state.view='detail'; state.dirFilt='all'; state.q=''; state._monthsFromChart=true;
+          render();
+        });
+      });
+    }
+    return;
+  }
+  if(state.view==='detail' && state.month){
+    const m=DATA.months.find(x=>x.ym===state.month);
+    let lines=(DATA.monthDetails[state.month]||[]).slice();
+    if(state.dirFilt==='inc') lines=lines.filter(x=>x.dir==='수입');
+    if(state.dirFilt==='exp') lines=lines.filter(x=>x.dir==='지출');
+    if(state.dirFilt==='fee') lines=lines.filter(x=>x.cat2==='교습비'||x.cat3==='교습비');
+    if(state.q){
+      const q=state.q.toLowerCase();
+      lines=lines.filter(x=>(x.student+x.memo+x.cat2+x.cat3).toLowerCase().includes(q));
+    }
+    p.innerHTML = `
+      <button class="back" id="backM">← 월 목록</button>
+      <div class="card">
+        <h2>${shortYm(m.ym)}월</h2>
+        <div class="metric"><span class="n">수입</span><span class="a inc">${won(m.income)}</span></div>
+        <div class="metric"><span class="n">지출</span><span class="a exp">${won(m.expense)}</span></div>
+        <div class="metric"><span class="n">교습비</span><span class="a fee">${won(m.fee)}</span></div>
+      </div>
+      ${(() => {
+        const {inc, exp} = monthSujiParts(state.month);
+        return donutBlock('지출 비중', exp.kids||[], 1) + donutBlock('수입 비중', inc.kids||[], 0);
+      })()}
+      <div class="filt">
+        <button data-f="all" class="${state.dirFilt==='all'?'on':''}">전체</button>
+        <button data-f="inc" class="${state.dirFilt==='inc'?'on':''}">수입</button>
+        <button data-f="exp" class="${state.dirFilt==='exp'?'on':''}">지출</button>
+        <button data-f="fee" class="${state.dirFilt==='fee'?'on':''}">교습비</button>
+      </div>
+      <input class="search" id="q" placeholder="학생·메모 검색" value="${state.q.replace(/"/g,'&quot;')}"/>
+      <div class="card" style="padding:6px 14px">
+        <button type="button" class="detail-toggle" id="monthDetailToggle">상세보기</button>
+        <div class="detail-panel" id="monthDetailPanel" hidden>
+        ${lines.length? lines.map(l=>`
+          <div class="line">
+            <div>
+              <div>${l.student || l.cat2 || l.dir}${l.cat3 && l.cat3!=='-' ? ' · '+l.cat3 : ''}</div>
+              <div class="m">${(l.day||'').slice(5)} · ${l.dir}${l.memo? ' · '+l.memo.slice(0,28):''}</div>
+            </div>
+            <div class="a" style="color:${l.dir==='지출'?'var(--exp)': (l.cat2==='교습비'||l.cat3==='교습비')?'var(--fee)':'var(--inc)'}">${won(l.amt)}</div>
+          </div>`).join('') : '<div class="empty">해당 없음</div>'}
+        </div>
+      </div>`;
+    el('backM').onclick=()=>{ if(state._monthsFromChart){ state._monthsFromChart=false; state.view='chartDetail'; state.month=null; state.q=''; } else { state.view='list'; state.month=null; state.q=''; } render(); };
+    p.querySelectorAll('.filt button').forEach(b=>b.onclick=()=>{state.dirFilt=b.dataset.f;render();});
+    const qi=el('q');
+    qi.oninput=()=>{state.q=qi.value; clearTimeout(window._qt); window._qt=setTimeout(render,180);};
+    bindFoldableLegend(p);
+    bindDetailPanel('monthDetailToggle','monthDetailPanel');
+    return;
+  }
+  const months=[...DATA.months].reverse();
+  const mChart = buildMonthsLineChart({summary:true, showValues:true});
+  p.innerHTML = `
+    <div class="chart-wrap bars home ytd" id="monthsChart">
+      <div class="chart-hint">최근 9개월 · 탭하면 상세</div>
+      <div class="chart-scroll" id="monthsHomeScroll">${mChart.svg}</div>
+      <div class="chart-legend">
+        <span><i style="background:var(--inc)"></i>수입</span>
+        <span><i style="background:var(--exp)"></i>지출</span>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:10px;padding:10px 12px">
+      <div class="sub" style="margin:0;color:var(--muted)">월을 누르면 상세 · 그래프 탭하면 전체 월 스크롤</div>
+    </div>
+    ` + months.map(m=>`
+    <div class="row" data-ym="${m.ym}">
+      <div class="left">
+        <div class="ym">${shortYm(m.ym)}월</div>
+        ${monthBar(m)}
+      </div>
+      <div class="right">
+        <div style="color:var(--inc)">+${won(m.income)}</div>
+        <div style="color:var(--exp)">−${won(m.expense)}</div>
+      </div>
+    </div>`).join('');
+  const wrap = el('monthsChart');
+  if(wrap){
+    wrap.addEventListener('click', ()=> goMonthsChartDetail());
+  }
+  // summary: no h-scroll / bindChartHDrag
+  p.querySelectorAll('.row').forEach(r=>r.onclick=()=>{state._monthsFromChart=false;state.month=r.dataset.ym;state.view='detail';state.dirFilt='all';state.q='';render();});
+}
+
+
+function sujiChartMonths(limit){
+  const keys = Object.keys(DATA.suji || {}).filter(Boolean).sort();
+  // also include months that exist only on DATA.months if needed — prefer suji keys
+  if(limit && keys.length > limit) return keys.slice(-limit);
+  return keys;
+}
+
+function buildSujiCashFlowChart(opts){
+  // summary: 최근 9개월 · declutter · 스크롤 없음. detail: 전체 월 + 좌우 스크롤.
+  const summary = !!(opts && opts.summary);
+  const showValues = opts && opts.showValues !== false;
+  let yms = sujiChartMonths(null);
+  if(summary) yms = filterYtdYms(yms);
+  const points = yms.map(ym=>{
+    const {inc, exp} = monthSujiParts(ym);
+    const income = Math.abs(Number(inc.amt)||0);
+    const expense = Math.abs(Number(exp.amt)||0);
+    const flow = income - expense;
+    return { ym, income, expense, flow };
+  });
+  const n = Math.max(points.length, 1);
+  const padL = summary ? 32 : 52, padR = summary ? 10 : 12, padT = summary ? 58 : 36, padB = summary ? 40 : 44;
+  const H = summary ? 420 : 260;
+  const visibleN = (opts && opts.visible != null) ? opts.visible : 6;
+  let barW, gap, slotW, plotW, W, scrollLeft;
+  if(summary){
+    W = 640;
+    plotW = W - padL - padR;
+    slotW = plotW / n;
+    barW = Math.max(26, Math.min(58, slotW * 0.92));
+    gap = slotW - barW;
+    scrollLeft = 0;
+  } else {
+    barW = 28;
+    gap = 10;
+    slotW = barW + gap;
+    plotW = Math.max(n * slotW, visibleN * slotW);
+    W = padL + plotW + padR;
+    scrollLeft = Math.max(0, (points.length - visibleN) * slotW);
+  }
+  const plotH = H - padT - padB;
+  const vals = points.map(p=>p.flow);
+  const maxAbs = Math.max(1, ...(vals.length ? vals.map(v=>Math.abs(v)) : [1]));
+  const axisMax = Math.max(maxAbs * 1.12, 1000000);
+  const axisMin = -axisMax;
+  const span = axisMax - axisMin;
+  const xAt = i => padL + (i + 0.5) * slotW;
+  const yAt = v => padT + plotH * (1 - (v - axisMin) / span);
+  const y0 = yAt(0);
+  let yTicks;
+  if(summary){
+    // labels at ±max + 0; only mid (0) grid line
+    const labs = [axisMin, 0, axisMax].map(v=>{
+      const nice = Math.round(v/10000)*10000;
+      const y = yAt(nice);
+      const isZero = Math.abs(nice) < 1;
+      const grid = isZero
+        ? `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#3a4660" stroke-width="1.5" stroke-dasharray="4 3"/>`
+        : '';
+      return `${grid}<text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(nice)}</text>`;
+    }).join('');
+    yTicks = labs;
+  } else {
+    const tickVals = [];
+    const tickN = 4;
+    for(let i=0;i<=tickN;i++) tickVals.push(axisMin + span * (i/tickN));
+    yTicks = tickVals.map(v=>{
+      const y = yAt(v);
+      const nice = Math.round(v/10000)*10000;
+      const isZero = Math.abs(nice) < 1;
+      return `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="${isZero?'#3a4660':'#2a3444'}" stroke-width="${isZero?1.5:1}" ${isZero?'stroke-dasharray="4 3"':''}/>
+      <text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b97a8" font-size="10">${axisLabel(nice)}</text>`;
+    }).join('');
+  }
+  const selYm = (opts && opts.selectedYm) || (typeof state!=='undefined' && state.month) || null;
+  const bars = points.map((p,i)=>{
+    const v = p.flow;
+    const y = yAt(v);
+    const top = Math.min(y, y0);
+    const h = Math.max(2, Math.abs(y0 - y));
+    const fill = v > 0 ? 'var(--inc)' : (v < 0 ? 'var(--exp)' : '#8b97a8');
+    const cx = xAt(i);
+    const label = String(Number(p.ym.slice(5)));
+    const valY = v >= 0 ? (top - 10) : (top + h + 16);
+    const selected = selYm && p.ym === selYm;
+    const vFs = summary ? 17 : 10;
+    const mFs = summary ? 16 : 10;
+    const showVal = showValues;
+    const valLab = showVal
+      ? `<text x="${cx.toFixed(1)}" y="${valY.toFixed(1)}" text-anchor="middle" fill="${fill}" font-size="${vFs}" font-weight="700" stroke="#0b0f14" stroke-width="4" paint-order="stroke" style="paint-order:stroke fill">${Math.round(v/10000)}</text>`
+      : '';
+    return `
+      <rect x="${(cx-barW/2).toFixed(1)}" y="${top.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" rx="5" fill="${fill}" opacity="1" stroke="${selected?'#e8eef7':'none'}" stroke-width="${selected?1.5:0}"/>
+      ${valLab}
+      <text x="${cx.toFixed(1)}" y="${H-12}" text-anchor="middle" fill="${selected?'#e8eef7':'#8b97a8'}" font-size="${mFs}" font-weight="${selected?700:400}">${label}</text>`;
+  }).join('');
+  const hits = points.map((p,i)=>{
+    const x = padL + i * slotW;
+    return `<rect class="suji-hit" data-ym="${p.ym}" x="${x.toFixed(1)}" y="${padT}" width="${slotW}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+  }).join('');
+  const svgSize = summary
+    ? `viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet"`
+    : `viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="xMinYMid meet"`;
+  return {
+    yms, points, scrollLeft, barW, gap, padL, summary,
+    svg: `<svg ${svgSize} role="img" aria-label="월별 현금흐름 막대">${yTicks}${bars}${hits}</svg>`
+  };
+}
+
+function renderSuji(){
+  const p=el('panel-suji');
+  if(state.sujiView==='chartDetail'){
+    const mChart = buildSujiCashFlowChart({showValues:true, selectedYm:state.month});
+    p.innerHTML = `
+      <button class="back" id="backSujiChart">← 현금흐름</button>
+      <div class="card">
+        <h2 style="margin:0">현금흐름 그래프</h2>
+        <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">전체 월 · 좌우 스크롤 · 막대 탭 → 해당 월 · 숫자 단위 만 원</div>
+      </div>
+      <div class="chart-wrap bars" id="sujiDetailChart">
+        <div class="chart-hint">좌우 스크롤</div>
+        <div class="chart-scroll" id="sujiDetailScroll">${mChart.svg}</div>
+        <div class="chart-legend">
+          <span><i style="background:var(--inc)"></i>플러스 현금흐름</span>
+          <span><i style="background:var(--exp)"></i>마이너스 현금흐름</span>
+        </div>
+      </div>`;
+    el('backSujiChart').onclick=()=>{ state.sujiView='list'; render(); };
+    const ssc = el('sujiDetailScroll');
+    if(ssc){
+      const goRight = ()=>{ ssc.scrollLeft = Math.max(0, ssc.scrollWidth - ssc.clientWidth); };
+      goRight();
+      requestAnimationFrame(()=>requestAnimationFrame(goRight));
+      if(typeof bindChartHDrag === 'function') bindChartHDrag(ssc);
+      ssc.querySelectorAll('.suji-hit').forEach(h=>{
+        h.addEventListener('click', e=>{
+          e.stopPropagation();
+          const ym = h.getAttribute('data-ym');
+          if(!ym) return;
+          state.month = ym;
+          state.sujiView = 'list';
+          render();
+        });
+      });
+    }
+    return;
+  }
+  const months=[...DATA.months].map(m=>m.ym).reverse();
+  if(!state.month) state.month = months[0];
+  const tree=DATA.suji[state.month]||[];
+  const incAmt = (tree.find(n=>n.name==='수입')||{}).amt || 0;
+  const expAmt = (tree.find(n=>n.name==='지출')||{}).amt || 0;
+  const cashFlow = incAmt - expAmt;
+  const cashColor = cashFlow>0 ? 'var(--inc)' : cashFlow<0 ? 'var(--exp)' : 'var(--muted)';
+  const mChart = buildSujiCashFlowChart({summary:true, showValues:true, selectedYm:state.month});
+  p.innerHTML = `
+    <div class="chart-wrap bars home ytd" id="sujiChart">
+      <div class="chart-hint">최근 9개월 · 탭하면 상세</div>
+      <div class="chart-scroll" id="sujiHomeScroll">${mChart.svg}</div>
+      <div class="chart-legend">
+        <span><i style="background:var(--inc)"></i>플러스 현금흐름</span>
+        <span><i style="background:var(--exp)"></i>마이너스 현금흐름</span>
+      </div>
+    </div>
+    <div class="seg" id="segS">${months.map(ym=>`<button data-ym="${ym}" class="${ym===state.month?'on':''}">${shortYm(ym)}</button>`).join('')}</div>
+    <div class="card" style="padding:4px 0">
+      ${tree.map((n1,i1)=>`
+        <div class="tree-item" data-l="1" data-i="${i1}">
+          <div class="head"><span>${n1.name}</span><span class="amt" style="color:${n1.name==='수입'?'var(--inc)':n1.name==='지출'?'var(--exp)':'var(--muted)'}">${won(n1.amt)}</span></div>
+          <div class="tree-kids open" id="k1-${i1}">
+            ${(n1.kids||[]).map((n2,i2)=>`
+              <div class="tree-item" data-l="2" data-i="${i1}-${i2}">
+                <div class="head"><span>${n2.name}</span><span class="amt">${won(n2.amt)}</span></div>
+                <div class="tree-kids" id="k2-${i1}-${i2}">
+                  ${(n2.kids||[]).map(n3=>`
+                    <div class="tree-item" style="cursor:default">
+                      <div class="head"><span style="font-weight:500;color:var(--muted)">${n3.name}</span><span class="amt">${won(n3.amt)}</span></div>
+                    </div>`).join('')}
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`).join('') || '<div class="empty">데이터 없음</div>'}
+      <div class="tree-item" style="cursor:default;border-top:1px solid var(--line);margin-top:4px;padding-top:4px">
+        <div class="head"><span>현금흐름</span><span class="amt" style="color:${cashColor}">${won(cashFlow)}</span></div>
+      </div>
+    </div>`;
+  const wrap = el('sujiChart');
+  if(wrap){
+    wrap.addEventListener('click', (e)=>{
+      if(e.target.closest('.suji-hit')) return;
+      goSujiChartDetail();
+    });
+    wrap.querySelectorAll('.suji-hit').forEach(h=>{
+      h.addEventListener('click', e=>{
+        e.stopPropagation();
+        goSujiChartDetail();
+      });
+    });
+  }
+  // summary: no h-scroll / bindChartHDrag
+el('segS').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.month=b.dataset.ym;render();});
+  const segOn = el('segS') && el('segS').querySelector('button.on');
+  if(segOn && typeof segOn.scrollIntoView === 'function'){
+    try{ segOn.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'}); }catch(_){ segOn.scrollIntoView(); }
+  }
+  p.querySelectorAll('.tree-item[data-l]').forEach(item=>{
+    item.addEventListener('click', e=>{
+      e.stopPropagation();
+      const id = item.dataset.l==='1' ? 'k1-'+item.dataset.i : 'k2-'+item.dataset.i;
+      const kids=document.getElementById(id);
+      if(kids) kids.classList.toggle('open');
+    });
+  });
+}
+
+function currentYmSeoul(){
+  // 미납은 «해당 납부대상월»이 시작된 뒤에만 잡는다 (서울 기준).
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit'
+    }).formatToParts(new Date());
+    const y = parts.find(p=>p.type==='year').value;
+    const m = parts.find(p=>p.type==='month').value;
+    return y + '-' + m;
+  } catch(e) {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  }
+}
+
+function isFeeMonthOpen(ym){
+  return !!ym && ym <= currentYmSeoul();
+}
+
+function unpaidVisibleFor(ym){
+  if(!isFeeMonthOpen(ym)) return [];
+  const block=DATA.tuition[ym]||{unpaid:[]};
+  const exNames=new Set(excludedForMonth(ym).map(x=>x.name));
+  return (block.unpaid||[]).filter(s=>!exNames.has(s.name));
+}
+
+function allUnpaidByMonth(){
+  const out=[];
+  for(const ym of (DATA.billMonths||[])){
+    let list=unpaidVisibleFor(ym);
+    if(state.q){
+      const q=state.q.toLowerCase();
+      list=list.filter(s=>(s.name+(s.grade||'')).toLowerCase().includes(q));
+    }
+    if(list.length) out.push({ym, list, total:list.reduce((a,s)=>a+(s.expected||0),0)});
+  }
+  return out;
+}
+
+function renderFee(){
+  const p=el('panel-fee');
+  const months=[...DATA.billMonths].reverse();
+  const ALL='__all_unpaid__';
+  if(!state.feeMonth) state.feeMonth = ALL;
+  if(!state.feeFilt) state.feeFilt = 'unpaid';
+  const isAll = state.feeMonth === ALL;
+
+  let modalHtml = '';
+  if(state.confirm){
+    const c=state.confirm;
+    modalHtml = `<div class="modal-bg" id="modalBg"><div class="modal">
+      <h3>미납에서 제외할까요?</h3>
+      <p><b style="color:var(--text)">${c.name}</b> · 납부대상 ${shortYm(c.ym)}월<br/>제외하면 이 달 미납 목록에서 빠집니다. 아래「제외 목록」에서 되돌릴 수 있어요.</p>
+      <div class="acts">
+        <button class="cancel" id="cfmNo">아니요</button>
+        <button class="ok" id="cfmYes">제외할래요</button>
+      </div>
+    </div></div>`;
+  }
+
+  const allGroups = allUnpaidByMonth();
+  const allCount = allGroups.reduce((a,g)=>a+g.list.length,0);
+  const allTotal = allGroups.reduce((a,g)=>a+g.total,0);
+
+  const segHtml = `<div class="seg" id="segF">` +
+    `<button data-ym="${ALL}" class="${isAll?'on warn':''}">미납${allCount? ' '+allCount:''}</button>` +
+    months.map(ym=>`<button data-ym="${ym}" class="${!isAll && ym===state.feeMonth?'on':''}">${shortYm(ym)}</button>`).join('') +
+    `</div>`;
+
+  if(isAll){
+    const body = allGroups.length ? allGroups.map(g=>`
+      <div class="card" style="margin-bottom:10px">
+        <h2 style="margin-bottom:6px">${shortYm(g.ym)}월 미납 · ${g.list.length}명 · ${won(g.total)}</h2>
+        <div style="padding:0">
+          ${g.list.map(s=>`
+            <div class="line unpaid-stu" data-stu-name="${escHtml(s.name)}" style="cursor:pointer">
+              <div style="min-width:0;flex:1">
+                <div>${s.name}</div>
+                <div class="m">${s.grade||''} · 예정 ${won(s.expected)}</div>
+              </div>
+              <div class="a" style="color:var(--warn);margin-right:8px">미납</div>
+              <button type="button" class="xbtn" data-exclude="${s.name}" data-ym="${g.ym}">제외</button>
+            </div>`).join('')}
+        </div>
+      </div>`).join('') : '<div class="card"><div class="empty">미납 없음</div></div>';
+
+    p.innerHTML = `
+      ${segHtml}
+      <div class="card">
+        <h2>전체 미납</h2>
+        <div class="metric"><span class="n">미납</span><span class="a warn">${allCount}명 · ${won(allTotal)}</span></div>
+        <div class="metric"><span class="n">기간</span><span class="a">${allGroups.length? shortYm(allGroups[0].ym)+' ~ '+shortYm(allGroups[allGroups.length-1].ym):'—'}</span></div>
+      </div>
+      <input class="search" id="qFee" placeholder="학생·학년 검색" value="${(state.q||'').replace(/"/g,'&quot;')}"/>
+      ${body}
+      ${modalHtml}`;
+  } else {
+    const block=DATA.tuition[state.feeMonth]||{paidTotal:0,paidCount:0,unpaidTotal:0,unpaidCount:0,paid:[],unpaid:[]};
+    const exList = excludedForMonth(state.feeMonth);
+    const exNames = new Set(exList.map(x=>x.name));
+
+    let list;
+    if(state.feeFilt==='paid'){
+      list = (block.paid||[]).slice();
+    } else {
+      list = unpaidVisibleFor(state.feeMonth);
+    }
+    if(state.q){
+      const q=state.q.toLowerCase();
+      list=list.filter(s=>(s.name+(s.grade||'')).toLowerCase().includes(q));
+    }
+
+    const unpaidVisible = unpaidVisibleFor(state.feeMonth);
+    const unpaidTotal = unpaidVisible.reduce((a,s)=>a+(s.expected||0),0);
+    const unpaidCount = unpaidVisible.length;
+    // 아직 시작 전 달: 미납 목록은 비우고(납부 입금만 표시), 필터 기본도 납부 쪽으로.
+    if(!isFeeMonthOpen(state.feeMonth) && state.feeFilt==='unpaid'){
+      // keep filt label but empty list; do not force paid so user can still tap
+    }
+
+    p.innerHTML = `
+      ${segHtml}
+      <div class="card">
+        <h2>납부대상 ${shortYm(state.feeMonth)}</h2>
+        <div class="metric"><span class="n">미납</span><span class="a warn">${isFeeMonthOpen(state.feeMonth) ? (unpaidCount+'명 · '+won(unpaidTotal)) : '아직 시작 전'}</span></div>
+        <div class="metric"><span class="n">납부</span><span class="a fee">${block.paidCount||0}명 · ${won(block.paidTotal||0)}</span></div>
+      </div>
+      <div class="filt">
+        <button data-ff="unpaid" class="${state.feeFilt==='unpaid'?'on warn':''}">미납 ${unpaidCount}</button>
+        <button data-ff="paid" class="${state.feeFilt==='paid'?'on ok':''}">납부 ${block.paidCount||0}</button>
+      </div>
+      ${exList.length ? `<div class="excluded-bar"><span>이 달 제외 ${exList.length}명</span><button type="button" id="toggleEx">${state.showExcluded?'숨기기':'목록 보기'}</button></div>` : ''}
+      ${state.showExcluded && exList.length ? `<div class="card" style="padding:6px 14px">${exList.map(x=>`
+        <div class="line">
+          <div><div>${x.name}</div><div class="m">미납에서 제외됨</div></div>
+          <button type="button" class="xbtn" data-restore="${x.name}">되돌리기</button>
+        </div>`).join('')}</div>` : ''}
+      <input class="search" id="qFee" placeholder="학생·학년 검색" value="${(state.q||'').replace(/"/g,'&quot;')}"/>
+      <div class="card" style="padding:6px 14px">
+        ${list.length? list.map(s=> state.feeFilt==='unpaid' ? `
+          <div class="line unpaid-stu" data-stu-name="${escHtml(s.name)}" style="cursor:pointer">
+            <div style="min-width:0;flex:1">
+              <div>${s.name}</div>
+              <div class="m">${s.grade||''} · 예정 ${won(s.expected)}</div>
+            </div>
+            <div class="a" style="color:var(--warn);margin-right:8px">미납</div>
+            <button type="button" class="xbtn" data-exclude="${s.name}" data-ym="${state.feeMonth}">제외</button>
+          </div>` : `
+          <div class="line">
+            <div><div>${s.name}</div><div class="m">${s.grade||''}${s.day? ' · '+(s.day.slice(5)) : ''}${s.expected? ' · 명단 '+won(s.expected):''}</div></div>
+            <div class="a" style="color:var(--fee)">${won(s.amt)}</div>
+          </div>`).join('') : '<div class="empty">해당 없음</div>'}
+      </div>
+      ${modalHtml}`;
+  }
+
+  el('segF').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    state.feeMonth=b.dataset.ym;
+    state.q='';
+    state.feeFilt='unpaid';
+    state.showExcluded=false;
+    state.confirm=null;
+    render();
+  });
+  p.querySelectorAll('.filt button').forEach(b=>b.onclick=()=>{state.feeFilt=b.dataset.ff;state.confirm=null;render();});
+  const tog=el('toggleEx');
+  if(tog) tog.onclick=()=>{state.showExcluded=!state.showExcluded;render();};
+  p.querySelectorAll('.unpaid-stu[data-stu-name]').forEach(row=>{
+    row.onclick=(e)=>{
+      if(e.target.closest && e.target.closest('[data-exclude]')) return;
+      const name = row.getAttribute('data-stu-name');
+      if(name) goStudentDetail(name);
+    };
+  });
+  p.querySelectorAll('[data-exclude]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    state.confirm={ ym: b.dataset.ym || state.feeMonth, name: b.dataset.exclude };
+    render();
+  });
+  p.querySelectorAll('[data-restore]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    restorePair(state.feeMonth, b.dataset.restore);
+    render();
+  });
+  if(state.confirm){
+    el('cfmNo').onclick=()=>{state.confirm=null;render();};
+    el('cfmYes').onclick=()=>{
+      excludePair(state.confirm.ym, state.confirm.name);
+      state.confirm=null;
+      render();
+    };
+    el('modalBg').onclick=(e)=>{ if(e.target.id==='modalBg'){ state.confirm=null; render(); } };
+  }
+  const qi=el('qFee');
+  if(qi) qi.oninput=()=>{state.q=qi.value; clearTimeout(window._qt); window._qt=setTimeout(render,180);};
+}
+
+
+const SALES_GOAL_1 = 10000000; // 1차 목표 1,000만원
+const SALES_GOAL_2 = 15000000; // 최종 목표 1,500만원 (그래프만)
+const SALES_DEADLINE = '2026-12-31'; // 1차 목표 기한
+const SALES_AXIS_MAX = 15000000; // 왼쪽 축 고정 상한 (균등)
+
+function seoulYmd(){
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit'
+    }).formatToParts(new Date());
+    const get = t => parts.find(p=>p.type===t).value;
+    return get('year')+'-'+get('month')+'-'+get('day');
+  } catch(e){
+    const d=new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+}
+
+function daysUntil(ymd){
+  const [y,m,d]=ymd.split('-').map(Number);
+  const [cy,cm,cd]=seoulYmd().split('-').map(Number);
+  const target = Date.UTC(y, m-1, d);
+  const today = Date.UTC(cy, cm-1, cd);
+  return Math.round((target - today) / 86400000);
+}
+
+function salesMonths(limit){
+  const cur = currentYmSeoul();
+  const set = new Set((DATA.billMonths || []).filter(ym => ym <= cur));
+  // ensure current month axis point exists even if tuition block missing
+  set.add(cur);
+  let all = [...set].sort();
+  if(limit && all.length > limit) all = all.slice(-limit);
+  return all;
+}
+
+function monthHasUnpaid(ym){
+  if(!isFeeMonthOpen(ym)) return false;
+  return unpaidVisibleFor(ym).length > 0;
+}
+
+function feeSales(ym){
+  const t = (DATA.tuition||{})[ym];
+  return t && typeof t.paidTotal==='number' ? t.paidTotal : 0;
+}
+
+function axisLabel(v){
+  if(v === 0) return '0';
+  if(v % 10000000 === 0) return (v/10000000) + '천만';
+  if(v % 10000 === 0) return (v/10000) + '만';
+  return won(v);
+}
+
+function bindChartHDrag(sc){
+  if(!sc || sc.dataset.dragBound === '1') return;
+  sc.dataset.dragBound = '1';
+  let down = false, startX = 0, startLeft = 0, moved = false;
+  sc.style.touchAction = 'pan-x';
+  sc.style.cursor = 'grab';
+  sc.addEventListener('pointerdown', e=>{
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    down = true; moved = false;
+    startX = e.clientX; startLeft = sc.scrollLeft;
+    sc.style.cursor = 'grabbing';
+    try{ sc.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  sc.addEventListener('pointermove', e=>{
+    if(!down) return;
+    const dx = e.clientX - startX;
+    if(Math.abs(dx) > 4) moved = true;
+    sc.scrollLeft = startLeft - dx;
+  });
+  const end = e=>{
+    if(!down) return;
+    down = false;
+    sc.style.cursor = 'grab';
+    if(moved){
+      // swallow the click that would fire after a drag
+      const sink = ev=>{ ev.stopPropagation(); ev.preventDefault(); sc.removeEventListener('click', sink, true); };
+      sc.addEventListener('click', sink, true);
+    }
+  };
+  sc.addEventListener('pointerup', end);
+  sc.addEventListener('pointercancel', end);
+}
+
+function buildSalesChart(opts){
+  const detail = !!(opts && opts.detail);
+  // 홈·기본은 최근 1년(12개월). detail 옵션만 전체.
+  const lastN = (opts && opts.last != null) ? opts.last : (detail ? null : 12);
+  const months = salesMonths(lastN);
+  const curYm = currentYmSeoul();
+  const points = months.map(ym => {
+    const has = !!(DATA.tuition||{})[ym];
+    return { ym, v: has ? feeSales(ym) : null };
+  });
+  const showValOpt = detail || !!(opts && opts.showValues);
+  const W = detail ? 720 : 640;
+  const H = showValOpt ? 320 : 240;
+  const padL = showValOpt ? 56 : 52, padR = 14, padT = showValOpt ? 32 : 22, padB = showValOpt ? 48 : 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  // 축: 목표 상한과 데이터 최대 중 큰 쪽. 너무 낮으면 목표선이 잘리므로 최소 1차 목표.
+  const dataMax = Math.max(0, ...points.map(p => p.v || 0));
+  const maxV = Math.max(SALES_GOAL_1, Math.min(SALES_AXIS_MAX, Math.ceil(Math.max(dataMax, SALES_GOAL_1) * 1.08 / 1000000) * 1000000));
+  const n = months.length;
+  const xAt = i => padL + (n<=1 ? plotW/2 : (i * plotW / (n-1)));
+  const yAt = v => padT + plotH * (1 - Math.min(v, maxV) / maxV);
+  const tickStep = maxV <= 10000000 ? 2500000 : 5000000;
+  const tickVals = [];
+  for(let t=0; t<=maxV+1; t+=tickStep) tickVals.push(t);
+  if(tickVals[tickVals.length-1] < maxV) tickVals.push(maxV);
+  const yTicks = tickVals.map(v=>{
+    const y = yAt(v);
+    return `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#2a3444" stroke-width="1"/>
+      <text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b97a8" font-size="10">${axisLabel(v)}</text>`;
+  }).join('');
+  const y1 = yAt(SALES_GOAL_1);
+  const y2 = yAt(Math.min(SALES_GOAL_2, maxV));
+  let polyParts = [];
+  let seg = [];
+  points.forEach((pt,i)=>{
+    if(pt.v == null){
+      if(seg.length){ polyParts.push(seg); seg=[]; }
+      return;
+    }
+    seg.push(`${xAt(i).toFixed(1)},${yAt(pt.v).toFixed(1)}`);
+  });
+  if(seg.length) polyParts.push(seg);
+  const lineW = detail ? 3.4 : 3.2;
+  // 어두운 배경용 외곽선 + 밝은 본선
+  const polylines = polyParts.map(s=>{
+    const pts = s.join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="#0b0f14" stroke-width="${lineW+2.2}" stroke-linejoin="round" stroke-linecap="round"/>
+      <polyline points="${pts}" fill="none" stroke="#8ec5ff" stroke-width="${lineW}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }).join('');
+  const dots = points.map((pt,i)=>{
+    if(pt.v == null) return '';
+    const unpaid = monthHasUnpaid(pt.ym);
+    const over = pt.v >= SALES_GOAL_1;
+    const fill = unpaid ? 'var(--exp)' : (over ? 'var(--inc)' : (pt.ym===curYm ? '#b8daff' : '#8ec5ff'));
+    const label = String(Number(pt.ym.slice(5)));
+    const showLab = detail || n<=18 || i%2===0 || pt.ym===curYm;
+    const showVal = detail || !!(opts && opts.showValues);
+    const valLab = showVal ? `<text x="${xAt(i).toFixed(1)}" y="${(yAt(pt.v)-12).toFixed(1)}" text-anchor="middle" fill="#e8eef7" font-size="10" font-weight="700" stroke="#0b0f14" stroke-width="3" paint-order="stroke" style="paint-order:stroke fill">${Math.round(pt.v/10000)}</text>` : '';
+    return `
+      <circle cx="${xAt(i).toFixed(1)}" cy="${yAt(pt.v).toFixed(1)}" r="5" fill="${fill}" stroke="#0b0f14" stroke-width="2"/>
+      ${valLab}
+      ${showLab?`<text x="${xAt(i).toFixed(1)}" y="${H-12}" text-anchor="middle" fill="${pt.ym===curYm?'#e8eef7':'#8b97a8'}" font-size="10" font-weight="${pt.ym===curYm?700:400}">${label}</text>`:''}
+    `;
+  }).join('');
+  const goal1 = `<line x1="${padL}" x2="${W-padR}" y1="${y1}" y2="${y1}" stroke="var(--warn)" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.75"/>
+        <text x="${W-padR}" y="${y1-6}" text-anchor="end" fill="var(--warn)" font-size="10" opacity="0.9">1차 1000만</text>`;
+  const goal2 = SALES_GOAL_2 <= maxV
+    ? `<line x1="${padL}" x2="${W-padR}" y1="${y2}" y2="${y2}" stroke="var(--inc)" stroke-width="1.2" stroke-dasharray="2 4" opacity="0.65"/>
+        <text x="${W-padR}" y="${y2-6}" text-anchor="end" fill="var(--inc)" font-size="10" opacity="0.85">최종 1500만</text>`
+    : '';
+  return {
+    months, points, curYm,
+    svg: `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="월별 교습비 매출 꺾은선 · 최근 1년">
+        ${yTicks}
+        ${goal1}
+        ${goal2}
+        ${polylines}
+        ${dots}
+      </svg>`
+  };
+}
+
+function buildSalesBarChart(opts){
+  // summary: 최근 9개월 · declutter · 큰 글씨 · 스크롤 없음. detail: 전체 월 + 좌우 스크롤.
+  const summary = !!(opts && opts.summary);
+  let months = salesMonths();
+  if(summary) months = filterYtdYms(months, currentYmSeoul());
+  const curYm = currentYmSeoul();
+  const points = months.map(ym => {
+    const has = !!(DATA.tuition||{})[ym];
+    return { ym, v: has ? feeSales(ym) : null };
+  });
+  const n = Math.max(months.length, 1);
+  const padL = summary ? 32 : 48, padR = summary ? 10 : 12, padT = summary ? 58 : 28, padB = summary ? 40 : 36;
+  const H = summary ? 420 : 260;
+  const visibleN = (opts && opts.visible != null) ? opts.visible : 6;
+  let barW, gap, slotW, plotW, W, scrollLeft;
+  if(summary){
+    W = 640;
+    plotW = W - padL - padR;
+    slotW = plotW / n;
+    barW = Math.max(26, Math.min(58, slotW * 0.92));
+    gap = slotW - barW;
+    scrollLeft = 0;
+  } else {
+    barW = 28;
+    gap = 10;
+    slotW = barW + gap;
+    plotW = Math.max(n * slotW, visibleN * slotW);
+    W = padL + plotW + padR;
+    scrollLeft = Math.max(0, (n - visibleN) * slotW);
+  }
+  const plotH = H - padT - padB;
+  const maxV = SALES_AXIS_MAX;
+  const xAt = i => padL + i * slotW + barW / 2;
+  const yAt = v => padT + plotH * (1 - Math.min(Math.max(v,0), maxV) / maxV);
+  const y0 = yAt(0);
+  let yTicks;
+  if(summary){
+    const mid = maxV / 2;
+    const midY = yAt(mid);
+    yTicks = [
+      `<line x1="${padL}" x2="${W-padR}" y1="${midY}" y2="${midY}" stroke="#2a3444" stroke-width="1"/>`,
+      `<text x="${padL-6}" y="${yAt(0)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(0)}</text>`,
+      `<text x="${padL-6}" y="${midY+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(mid)}</text>`,
+      `<text x="${padL-6}" y="${yAt(maxV)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(maxV)}</text>`
+    ].join('');
+  } else {
+    const tickVals = [0, 5000000, 10000000, 15000000];
+    yTicks = tickVals.map(v=>{
+      const y = yAt(v);
+      return `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#2a3444" stroke-width="1"/>
+      <text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b97a8" font-size="10">${axisLabel(v)}</text>`;
+    }).join('');
+  }
+  const y1 = yAt(SALES_GOAL_1);
+  const y2 = yAt(SALES_GOAL_2);
+  const bars = points.map((pt,i)=>{
+    const mFs = summary ? 16 : 10;
+    if(pt.v == null) {
+      return `<text x="${xAt(i).toFixed(1)}" y="${H-12}" text-anchor="middle" fill="#5a6575" font-size="${mFs}">${String(Number(months[i].slice(5)))}</text>`;
+    }
+    const unpaid = monthHasUnpaid(pt.ym);
+    const over = pt.v >= SALES_GOAL_1;
+    const fill = unpaid ? 'var(--exp)' : (over ? 'var(--inc)' : (pt.ym===curYm ? 'var(--fee)' : '#6aa8ff'));
+    const y = yAt(pt.v);
+    const h = Math.max(2, y0 - y);
+    const label = String(Number(pt.ym.slice(5)));
+    const val = Math.round(pt.v/10000);
+    const vFs = summary ? 17 : 10;
+    const valLab = `<text x="${xAt(i).toFixed(1)}" y="${(y-10).toFixed(1)}" text-anchor="middle" fill="#e8eef7" font-size="${vFs}" font-weight="700" stroke="#0b0f14" stroke-width="4" paint-order="stroke" style="paint-order:stroke fill">${val}</text>`;
+    return `
+      <rect class="sales-bar" data-fee-ym="${pt.ym}" x="${(xAt(i)-barW/2).toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" rx="5" fill="${fill}" opacity="1"/>
+      ${valLab}
+      <text x="${xAt(i).toFixed(1)}" y="${H-12}" text-anchor="middle" fill="${pt.ym===curYm?'#e8eef7':'#8b97a8'}" font-size="${mFs}" font-weight="${pt.ym===curYm?700:400}">${label}</text>`;
+  }).join('');
+  const svgSize = summary
+    ? `viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet"`
+    : `viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:${W}px;height:${H}px;min-width:${W}px" preserveAspectRatio="xMinYMid meet"`;
+  const goalFs = summary ? 13 : 11;
+  return {
+    months, points, curYm, width: W, scrollLeft, summary,
+    svg: `<svg ${svgSize} role="img" aria-label="월별 교습비 매출 막대">
+        ${yTicks}
+        <line x1="${padL}" x2="${W-padR}" y1="${y1}" y2="${y1}" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="${W-padR}" y="${y1-6}" text-anchor="end" fill="var(--warn)" font-size="${goalFs}">1차 1000만</text>
+        <line x1="${padL}" x2="${W-padR}" y1="${y2}" y2="${y2}" stroke="var(--inc)" stroke-width="1.5" stroke-dasharray="2 4"/>
+        <text x="${W-padR}" y="${y2-6}" text-anchor="end" fill="var(--inc)" font-size="${goalFs}">최종 1500만</text>
+        ${bars}
+      </svg>`
+  };
+}
+
+function renderSales(){
+  const p = el('panel-sales');
+  const detail = state.salesView === 'detail';
+  const curYm = currentYmSeoul();
+  const curSales = feeSales(curYm);
+  const dday = daysUntil(SALES_DEADLINE);
+  const ddayLabel = dday>0 ? `D-${dday}` : (dday===0 ? 'D-DAY' : `D+${Math.abs(dday)}`);
+  const pct = Math.min(100, Math.round(curSales / SALES_GOAL_1 * 100));
+  const gap = SALES_GOAL_1 - curSales;
+  const chart = detail ? buildSalesBarChart() : buildSalesBarChart({summary:true});
+
+  const hist = (DATA.billMonths||[]).slice().reverse();
+  const rows = hist.map(ym=>{
+    const v = feeSales(ym);
+    const g = SALES_GOAL_1 - v;
+    const cls = g<=0 ? 'ok' : 'warn';
+    const gtxt = g<=0 ? `+${won(-g)}` : `-${won(g)}`;
+    const unpaid = monthHasUnpaid(ym);
+    return `<div class="month-row go" data-fee-ym="${ym}"><span>${shortYm(ym)}${unpaid?' · 미납':''}</span><span style="color:var(--fee);font-weight:700">${won(v)}</span><span class="gap ${cls}">${gtxt}</span></div>`;
+  }).join('');
+
+  if(state.salesView === 'ddayCal'){
+    const today = seoulYmd();
+    const deadline = SALES_DEADLINE;
+    const dday = daysUntil(deadline);
+    const ddayLabel = dday>0 ? `D-${dday}` : (dday===0 ? 'D-DAY' : `D+${Math.abs(dday)}`);
+    const fromYm = today.slice(0,7);
+    const toYm = deadline.slice(0,7);
+    const months = ymListInclusive(fromYm, toYm);
+    const remainDays = Math.max(0, dday);
+    const goneDays = (()=>{
+      // from month start of fromYm? Better: days from start of first shown month that are past, or simply until today from an arbitrary start.
+      // Use: past cells visible in the calendar range (today's month start → yesterday)
+      const [y,m] = fromYm.split('-').map(Number);
+      const start = fromYm+'-01';
+      let n=0;
+      let cur=start;
+      while(cur < today && cur <= deadline){
+        n++;
+        const [yy,mm,dd]=cur.split('-').map(Number);
+        const next = new Date(Date.UTC(yy, mm-1, dd+1));
+        cur = next.toISOString().slice(0,10);
+      }
+      return n;
+    })();
+    p.innerHTML = `
+      <button class="back" id="backSales">← 매출 요약</button>
+      <div class="card">
+        <div class="cal-head">
+          <div>
+            <h2 style="margin:0">1차 목표 디데이</h2>
+            <div class="sub" style="margin-top:4px;color:var(--muted)">기한 ${deadline.replace(/-/g,'.')} · 월매출 1000만</div>
+          </div>
+          <div class="dd">${ddayLabel}</div>
+        </div>
+        <div class="metric"><span class="n">지난 날</span><span class="a warn">${goneDays}일 ✕</span></div>
+        <div class="metric"><span class="n">남은 날</span><span class="a">${remainDays}일 □</span></div>
+      </div>
+      <div class="card">
+        ${months.map(ym=>buildDdayMonthHtml(ym, today, deadline)).join('')}
+        <div class="cal-legend">
+          <span><i style="background:#1a1214;color:#ff8b8b;border:1px solid #3a2226">✕</i>지난 날</span>
+          <span><i style="background:#121820;border:1px dashed #2a3444"></i>남은 날</span>
+          <span><i style="background:rgba(245,166,35,.18);color:var(--warn);border:1px solid var(--warn);font-size:.65rem">목</i>목표일</span>
+        </div>
+      </div>`;
+    el('backSales').onclick=()=>{ state.salesView='list'; render(); };
+    return;
+  }
+
+  if(state.salesView === 'incReport'){
+    const ym = state.month || prevYmSeoul();
+    const m = (DATA.months||[]).find(x=>x.ym===ym) || {income:0};
+    const gradeKids = buildIncGradeKids(ym);
+    let lines = (DATA.monthDetails[ym]||[]).filter(x=>x.dir==='수입').slice();
+    lines.sort((a,b)=>Math.abs(Number(b.amt)||0)-Math.abs(Number(a.amt)||0));
+    p.innerHTML = `
+      <button class="back" id="backSales">← 매출 요약</button>
+      <div class="card">
+        <h2>${longYmLabel(ym)} 수입</h2>
+        <div class="metric"><span class="n">수입 합계</span><span class="a inc">${won(m.income||0)}</span></div>
+        <div class="sub" style="margin-top:8px;color:var(--muted)">학년 비중 · ${koShortYm(ym)}</div>
+      </div>
+      ${donutBlockFoldable('수입 학년 비중', gradeKids, 0)}
+      <div class="card" style="padding:6px 14px">
+        <h2 style="margin:8px 0 4px">수입 상세</h2>
+        <button type="button" class="detail-toggle" id="incDetailToggle">상세보기</button>
+        <div class="detail-panel" id="incDetailPanel" hidden>
+        ${lines.length? lines.map(l=>{
+          const label = l.student || l.cat2 || l.memo || l.dir;
+          const sub = [(l.day||'').slice(5), l.cat2||'', l.cat3 && l.cat3!=='-' && l.cat3!==l.cat2 ? l.cat3 : '', l.memo? l.memo.slice(0,28):''].filter(Boolean).join(' · ');
+          return `<div class="line">
+            <div>
+              <div>${label}${l.cat3 && l.cat3!=='-' && !l.student ? ' · '+l.cat3 : ''}</div>
+              <div class="m">${sub}</div>
+            </div>
+            <div class="a" style="color:var(--inc)">${won(l.amt)}</div>
+          </div>`;
+        }).join('') : '<div class="empty">해당 없음</div>'}
+        </div>
+      </div>
+      <button class="back" id="toMonthInc" style="width:100%;margin-top:4px;text-align:center">수입지출 탭에서 이 달 수입 보기</button>`;
+    el('backSales').onclick=()=>{ state.salesView='list'; render(); };
+    el('toMonthInc').onclick=()=>goMonthDetail(ym,'inc');
+    bindFoldableLegend(p);
+    bindDetailPanel('incDetailToggle','incDetailPanel');
+    return;
+  }
+
+  if(state.salesView === 'expReport'){
+    const ym = state.month || prevYmSeoul();
+    const m = (DATA.months||[]).find(x=>x.ym===ym) || {expense:0};
+    const {exp} = monthSujiParts(ym);
+    let lines = (DATA.monthDetails[ym]||[]).filter(x=>x.dir==='지출').slice();
+    lines.sort((a,b)=>Math.abs(Number(b.amt)||0)-Math.abs(Number(a.amt)||0));
+    p.innerHTML = `
+      <button class="back" id="backSales">← 매출 요약</button>
+      <div class="card">
+        <h2>${longYmLabel(ym)} 지출</h2>
+        <div class="metric"><span class="n">지출 합계</span><span class="a exp">${won(m.expense||0)}</span></div>
+        <div class="sub" style="margin-top:8px;color:var(--muted)">항목 비중 · ${koShortYm(ym)}</div>
+      </div>
+      ${donutBlockFoldable('지출 비중', exp.kids||[], 1)}
+      <div class="card" style="padding:6px 14px">
+        <h2 style="margin:8px 0 4px">지출 상세</h2>
+        <button type="button" class="detail-toggle" id="expDetailToggle">상세보기</button>
+        <div class="detail-panel" id="expDetailPanel" hidden>
+        ${lines.length? lines.map(l=>{
+          const label = [l.cat2, l.cat3 && l.cat3!=='-' ? l.cat3 : ''].filter(Boolean).join(' · ') || l.dir;
+          const sub = [(l.day||'').slice(5), l.memo? l.memo.slice(0,28):'', l.student||''].filter(Boolean).join(' · ');
+          return `<div class="line">
+            <div>
+              <div>${label}</div>
+              <div class="m">${sub}</div>
+            </div>
+            <div class="a" style="color:var(--exp)">${won(l.amt)}</div>
+          </div>`;
+        }).join('') : '<div class="empty">해당 없음</div>'}
+        </div>
+      </div>
+      <button class="back" id="toMonthExp" style="width:100%;margin-top:4px;text-align:center">수입지출 탭에서 이 달 지출 보기</button>`;
+    el('backSales').onclick=()=>{ state.salesView='list'; render(); };
+    el('toMonthExp').onclick=()=>goMonthDetail(ym,'exp');
+    bindFoldableLegend(p);
+    bindDetailPanel('expDetailToggle','expDetailPanel');
+    return;
+  }
+
+  if(state.salesView === 'feePayReport'){
+    const ym = state.feeMonth || prevYmSeoul();
+    const block = (DATA.tuition||{})[ym] || {paid:[], unpaid:[], paidTotal:0, paidCount:0, unpaidTotal:0, unpaidCount:0};
+    const paid = (block.paid||[]).slice().sort((a,b)=>(b.amt||0)-(a.amt||0));
+    const unpaidVis = (typeof unpaidVisibleFor==='function') ? unpaidVisibleFor(ym) : (block.unpaid||[]);
+    const unpaidAmt = unpaidVis.reduce((a,s)=>a+(s.expected||0),0);
+    const unpaidSorted = unpaidVis.slice().sort((a,b)=>(b.expected||0)-(a.expected||0));
+    const payKids = [
+      {name:'미납', amt: unpaidAmt, kids: unpaidSorted.map(s=>({name: `${s.name||''}${s.grade? ' · '+s.grade:''}`, amt: s.expected||0, kids:[]}))},
+      {name:'납부', amt: block.paidTotal||0, kids: paid.map(s=>({name: `${s.name||''}${s.grade? ' · '+s.grade:''}`, amt: s.amt||0, kids:[]}))}
+    ];
+    p.innerHTML = `
+      <button class="back" id="backSales">← 매출 요약</button>
+      <div class="card">
+        <h2>${longYmLabel(ym)} 교습비 · 납부/미납</h2>
+        <div class="metric"><span class="n">미납</span><span class="a warn">${unpaidVis.length}명 · ${won(unpaidAmt)}</span></div>
+        <div class="metric"><span class="n">납부</span><span class="a fee">${block.paidCount||paid.length}명 · ${won(block.paidTotal||0)}</span></div>
+        <div class="sub" style="margin-top:8px;color:var(--muted)">교습비 현황(납부대상월) · ${koShortYm(ym)} · 미납/납부 눌러 명단</div>
+      </div>
+      ${donutBlock('납부 vs 미납', payKids, 0)}
+      <div class="card" style="padding:6px 14px">
+        <button type="button" class="detail-toggle" id="feePayDetailToggle">상세보기</button>
+        <div class="detail-panel" id="feePayDetailPanel" hidden>
+          <h2 style="margin:8px 0 4px">미납 학생</h2>
+          ${unpaidSorted.length? unpaidSorted.map(s=>`
+            <div class="line">
+              <div>
+                <div>${s.name||''}</div>
+                <div class="m">${s.grade||''}</div>
+              </div>
+              <div class="a" style="color:var(--warn)">${won(s.expected||0)}</div>
+            </div>`).join('') : '<div class="empty">미납 없음</div>'}
+          <h2 style="margin:16px 0 4px">납부 학생</h2>
+          ${paid.length? paid.map(s=>`
+            <div class="line">
+              <div>
+                <div>${s.name||''}</div>
+                <div class="m">${s.grade||''}${(s.day||'') ? ' · '+(s.day||'').slice(5) : ''}</div>
+              </div>
+              <div class="a" style="color:var(--fee)">${won(s.amt||0)}</div>
+            </div>`).join('') : '<div class="empty">납부 없음</div>'}
+        </div>
+      </div>
+      <button class="back" id="toFeeTabPay" style="width:100%;margin-top:4px;text-align:center">교습비 탭에서 ${koShortYm(ym)} 보기</button>`;
+    el('backSales').onclick=()=>{ state.salesView='list'; render(); };
+    el('toFeeTabPay').onclick=()=>goFeeMonth(ym);
+    bindFoldableLegend(p);
+    bindDetailPanel('feePayDetailToggle','feePayDetailPanel');
+    return;
+  }
+
+  if(state.salesView === 'feeDonut'){
+    const ym = state.feeMonth || curYm;
+    const block = (DATA.tuition||{})[ym] || {paid:[], unpaid:[], paidTotal:0, paidCount:0};
+    const paid = (block.paid||[]).slice();
+    const stuByName = {};
+    (DATA.students||[]).forEach(s=>{ if(s && s.name) stuByName[s.name]=s; });
+    const enrich = (s)=>{
+      const meta = stuByName[s.name] || {};
+      return {
+        name: s.name || '학생',
+        amt: s.amt||0,
+        grade: s.grade || meta.grade || meta.grade1 || '기타',
+        school: meta.school || '학교 미기입',
+        address: meta.address || '주소 미기입'
+      };
+    };
+    const enriched = paid.map(enrich).filter(s=>s.amt>0);
+
+    function groupDonut(rows, keyFn, labelFn){
+      const bag = {};
+      rows.forEach(s=>{
+        const key = keyFn(s) || '기타';
+        if(!bag[key]) bag[key] = {name: labelFn ? labelFn(key,s) : key, amt:0, kids:{}};
+        bag[key].amt += s.amt;
+        const kid = s.name || '학생';
+        bag[key].kids[kid] = (bag[key].kids[kid]||0) + s.amt;
+      });
+      return Object.values(bag).map(g=>({
+        name: g.name,
+        amt: g.amt,
+        kids: Object.entries(g.kids).map(([name,amt])=>({name, amt})).sort((a,b)=>b.amt-a.amt)
+      })).sort((a,b)=>b.amt-a.amt);
+    }
+
+    // 학년(초등/중등/고등/기타) — 상세는 학년 조각별 학생 명단
+    const gradeBand = (s)=>{
+      const g = String(s.grade||'');
+      if(g.includes('초')) return '초등';
+      if(g.includes('중')) return '중등';
+      if(g.includes('고')) return '고등';
+      const meta = stuByName[s.name];
+      const g1 = meta && meta.grade1;
+      if(g1==='초등'||g1==='중등'||g1==='고등') return g1;
+      return '기타';
+    };
+    const gradeKids = groupDonut(enriched, gradeBand);
+    const schoolKids = groupDonut(enriched, s=>s.school);
+    const addrKids = groupDonut(enriched, s=>s.address);
+
+    p.innerHTML = `
+      <button class="back" id="backSales">← 매출 요약</button>
+      <div class="card">
+        <h2>${koShortYm(ym)} 교습비 매출</h2>
+        <div class="metric"><span class="n">납부</span><span class="a fee">${block.paidCount||0}명 · ${won(block.paidTotal||0)}</span></div>
+        <div class="sub" style="margin-top:8px;color:var(--muted)">학년·학교·주소 도넛 · 조각/상세보기 누르면 해당 명단</div>
+      </div>
+      ${donutBlock('학년별 납부', gradeKids, 0)}
+      ${donutBlock('학교별 납부', schoolKids, 2)}
+      ${donutBlock('주소별 납부', addrKids, 3)}
+      <button class="back" id="toFeeTab" style="width:100%;margin-top:4px;text-align:center">교습비 탭에서 ${koShortYm(ym)} 보기</button>`;
+    el('backSales').onclick=()=>{ state.salesView='list'; render(); };
+    el('toFeeTab').onclick=()=>goFeeMonth(ym);
+    bindFoldableLegend(p);
+    return;
+  }
+
+  if(detail){
+    p.innerHTML = `
+      <button class="back" id="backSales">← 매출 요약</button>
+      <div class="card">
+        <h2>교습비 매출 막대</h2>
+        <div class="sub" style="margin-top:4px;color:var(--muted)">단위: 위 숫자 만 원 · 전체 월 · 좌우 스크롤 · 막대 탭하면 해당 월</div>
+      </div>
+      <div class="chart-wrap bars" id="salesChart">
+        <div class="chart-hint">좌우 스크롤</div>
+        <div class="chart-scroll">${chart.svg}</div>
+        <div class="chart-legend">
+          <span><i style="background:var(--fee)"></i>이번 달</span>
+          <span><i style="background:#6aa8ff"></i>납부 월</span>
+          <span><i style="background:var(--exp)"></i>미납 있는 달</span>
+          <span><i style="background:var(--inc)"></i>1차 목표 달성</span>
+          <span><i style="background:var(--warn)"></i>1차 1000만</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>월별 · 1차 목표 대비</h2>
+        <div class="month-row" style="color:var(--muted);font-size:.78rem"><span>월</span><span>교습비 매출</span><span>1차差</span></div>
+        ${rows || '<div class="empty">데이터 없음</div>'}
+      </div>`;
+    el('backSales').onclick=()=>{ state.salesView='list'; render(); };
+    p.querySelectorAll('[data-fee-ym]').forEach(r=>r.onclick=()=>goFeeMonth(r.dataset.feeYm));
+    const sc = p.querySelector('.chart-scroll');
+    if(sc){
+      const go = ()=>{ sc.scrollLeft = chart.scrollLeft || Math.max(0, sc.scrollWidth - sc.clientWidth); };
+      requestAnimationFrame(()=>requestAnimationFrame(go));
+      bindChartHDrag(sc);
+    }
+    return;
+  }
+
+  p.innerHTML = `
+    <div class="goal-card">
+      <div class="card go fee" style="margin:0" id="curFeeCard">
+        <div class="sub">이번 달 교습비 매출 · ${koShortYm(curYm)}</div>
+        <div class="big" style="color:var(--fee)">${won(curSales)}</div>
+        <div class="sub">1차 목표 ${won(SALES_GOAL_1)} · ${pct}%</div>
+        <div class="prog"><span style="width:${pct}%"></span></div>
+        <div class="sub" style="margin-top:8px">${gap>0 ? `1차 목표까지 ${won(gap)}` : `1차 목표 초과 ${won(-gap)}`}</div>
+        <div class="hint">도넛 상세 ›</div>
+      </div>
+      <div class="card go dday" style="margin:0" id="ddayCard">
+        <div class="sub">1차 목표 1000만 · 기한</div>
+        <div class="dday">${ddayLabel}</div>
+        <div class="sub">2026.12.31까지</div>
+        <div class="sub" style="margin-top:10px">기준: 교습비 납부 합계</div>
+        <div class="hint">디데이 달력 ›</div>
+      </div>
+    </div>
+    <div class="chart-wrap bars ytd" id="salesChart">
+      <div class="chart-hint">최근 9개월 · 탭하면 상세</div>
+      <div class="chart-scroll" id="salesHomeScroll">${chart.svg}</div>
+      <div class="chart-legend">
+        <span><i style="background:var(--fee)"></i>월 교습비 납부</span>
+        <span><i style="background:var(--exp)"></i>미납 있는 달</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>월별 · 1차 목표 대비</h2>
+      <div class="month-row" style="color:var(--muted);font-size:.78rem"><span>월</span><span>교습비 매출</span><span>1차差</span></div>
+      ${rows || '<div class="empty">데이터 없음</div>'}
+    </div>`;
+
+  const wrap = el('salesChart');
+  if(wrap){
+    wrap.addEventListener('click', (e)=>{
+      if(e.target.closest('.month-row')) return;
+      goSalesChartDetail();
+    });
+  }
+  // summary: no h-scroll / bindChartHDrag
+  const feeCard = el('curFeeCard');
+  if(feeCard) feeCard.onclick=()=>goSalesFeeDonut(curYm);
+  const ddayCard = el('ddayCard');
+  if(ddayCard) ddayCard.onclick=()=>openGoalCalendar();
+  p.querySelectorAll('.month-row[data-fee-ym]').forEach(r=>r.onclick=(e)=>{ e.stopPropagation(); goFeeMonth(r.dataset.feeYm); });
+}
+
+
+function studentTuitionHistory(name){
+  const out=[];
+  (DATA.billMonths||[]).forEach(ym=>{
+    const block=(DATA.tuition||{})[ym];
+    if(!block) return;
+    const paid=(block.paid||[]).find(x=>x.name===name);
+    const unpaid=(block.unpaid||[]).find(x=>x.name===name);
+    if(paid) out.push({ym, status:'납부', amt:paid.amt||0, expected:paid.expected||0, day:paid.day||''});
+    else if(unpaid) out.push({ym, status:'미납', amt:0, expected:unpaid.expected||0, day:''});
+  });
+  return out.reverse();
+}
+
+
+function studentChartMonths(limit){
+  // 이번 달·미래 달은 제외하고 전월까지만 (예: 9월이면 8월까지)
+  const prev = prevYmSeoul();
+  let yms = Object.keys(DATA.tuition || {}).filter(ym => ym && ym <= prev).sort();
+  if(limit && yms.length > limit) yms = yms.slice(-limit);
+  return yms;
+}
+
+function paidNamesFor(ym){
+  const block = (DATA.tuition || {})[ym] || {};
+  return new Set((block.paid || []).map(x => x.name).filter(Boolean));
+}
+
+function rosterNamesFor(ym){
+  // 납부+미납 = 그달 교습비 대상 명단(재원 추정)
+  const block = (DATA.tuition || {})[ym] || {};
+  const s = new Set();
+  (block.paid || []).forEach(x => { if(x && x.name) s.add(x.name); });
+  (block.unpaid || []).forEach(x => { if(x && x.name) s.add(x.name); });
+  return s;
+}
+
+function leaveNamesForMonth(ym, prevYm){
+  // 전월 명단(납부+미납) → 이번 달 명단에 없으면 퇴소
+  if(!prevYm) return new Set();
+  const prevRoster = rosterNamesFor(prevYm);
+  const roster = rosterNamesFor(ym);
+  const out = new Set();
+  prevRoster.forEach(name => {
+    if(!roster.has(name)) out.add(name);
+  });
+  return out;
+}
+
+function enterNamesForMonth(ym, prevYm){
+  // 이번 달 납부·미납 명단에는 있고 전월 명단에는 없으면 입소
+  if(!prevYm) return new Set();
+  const prevRoster = rosterNamesFor(prevYm);
+  const roster = rosterNamesFor(ym);
+  const out = new Set();
+  roster.forEach(name => {
+    if(!prevRoster.has(name)) out.add(name);
+  });
+  return out;
+}
+
+function studentByName(name){
+  return (DATA.students || []).find(s => s && s.name === name) || null;
+}
+
+function flowMonthPrev(ym){
+  const yms = Object.keys(DATA.tuition || {}).filter(Boolean).sort();
+  const i = yms.indexOf(ym);
+  return i > 0 ? yms[i - 1] : null;
+}
+
+function buildStudentEnrollChart(opts){
+  // unused legacy; keep YTD-aligned with bar chart when last not set
+  const showValues = opts && opts.showValues !== false;
+  let yms;
+  if(opts && opts.last != null) yms = studentChartMonths(opts.last);
+  else yms = filterYtdYms(studentChartMonths(), prevYmSeoul());
+  const points = yms.map((ym) => {
+    const enrolled = rosterNamesFor(ym).size;
+    const prev = flowMonthPrev(ym);
+    const left = prev ? leaveNamesForMonth(ym, prev).size : 0;
+    const entered = prev ? enterNamesForMonth(ym, prev).size : 0;
+    return { ym, enrolled, left, entered };
+  });
+  const n = points.length;
+  const W = 640, H = 300;
+  const padL = 44, padR = 14, padT = 36, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxEn = Math.max(1, ...points.map(p => p.enrolled));
+  const maxFlow = Math.max(1, ...points.map(p => Math.max(p.left, p.entered)));
+  const axisMax = Math.max(maxEn * 1.12, maxFlow * 1.12, 10);
+  const slot = n <= 1 ? plotW : plotW / n;
+  const pairW = Math.min(28, Math.max(14, slot * 0.62));
+  const gap = 2;
+  const barW = Math.max(4, (pairW - gap) / 2);
+  const xAt = i => padL + slot * i + slot / 2;
+  const yAt = v => padT + plotH * (1 - Math.min(v, axisMax) / axisMax);
+  const y0 = yAt(0);
+  const tickVals = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(axisMax * t));
+  const yTicks = tickVals.map(v => {
+    const y = yAt(v);
+    return `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#2a3444" stroke-width="1"/>
+      <text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b97a8" font-size="10">${v}</text>`;
+  }).join('');
+
+  const bars = points.map((p, i) => {
+    const cx = xAt(i);
+    const parts = [];
+    // 재원 막대(배경)
+    const ye = yAt(p.enrolled);
+    const he = Math.max(2, y0 - ye);
+    parts.push(`<rect x="${(cx - pairW/2).toFixed(1)}" y="${ye.toFixed(1)}" width="${pairW}" height="${he.toFixed(1)}" rx="4" fill="var(--fee)" opacity="0.35"/>`);
+    if(showValues){
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(ye-6).toFixed(1)}" text-anchor="middle" fill="var(--fee)" font-size="10" font-weight="700" stroke="#0b0f14" stroke-width="3" paint-order="stroke" style="paint-order:stroke fill">${p.enrolled}</text>`);
+    }
+    if(p.entered){
+      const y = yAt(p.entered);
+      const h = Math.max(3, y0 - y);
+      const x = cx - pairW / 2;
+      parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="var(--inc)" opacity="0.9"/>`);
+      if(showValues) parts.push(`<text x="${(x+barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" fill="var(--inc)" font-size="9" font-weight="700" stroke="#0b0f14" stroke-width="2.5" paint-order="stroke" style="paint-order:stroke fill">${p.entered}</text>`);
+    }
+    if(p.left){
+      const y = yAt(p.left);
+      const h = Math.max(3, y0 - y);
+      const x = cx - pairW / 2 + barW + gap;
+      parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="var(--exp)" opacity="0.9"/>`);
+      if(showValues) parts.push(`<text x="${(x+barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" fill="var(--exp)" font-size="9" font-weight="700" stroke="#0b0f14" stroke-width="2.5" paint-order="stroke" style="paint-order:stroke fill">${p.left}</text>`);
+    }
+    const label = String(Number(p.ym.slice(5)));
+    const showLab = n <= 14 || i % 2 === 0 || i === n - 1;
+    if(showLab) parts.push(`<text x="${cx.toFixed(1)}" y="${H-12}" text-anchor="middle" fill="#8b97a8" font-size="10">${label}</text>`);
+    return parts.join('');
+  }).join('');
+
+  const hits = points.map((p, i) => {
+    const x = padL + slot * i;
+    return `<rect class="stu-flow-hit" data-ym="${p.ym}" x="${x.toFixed(1)}" y="${padT}" width="${Math.max(8, slot).toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+  }).join('');
+
+  return {
+    yms, points,
+    svg: `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="재원생·입소·퇴소 막대">
+      ${yTicks}
+      ${bars}
+      ${hits}
+    </svg>`
+  };
+}
+
+function buildStudentEnrollBarChart(opts){
+  // summary: 최근 9개월(전월) · declutter · 재원 숫자만 · 스크롤 없음. detail: 전체 + 좌우 스크롤.
+  const summary = !!(opts && opts.summary);
+  let yms = studentChartMonths();
+  if(summary) yms = filterYtdYms(yms, prevYmSeoul());
+  const points = yms.map((ym) => {
+    const enrolled = rosterNamesFor(ym).size;
+    const prev = flowMonthPrev(ym);
+    const left = prev ? leaveNamesForMonth(ym, prev).size : 0;
+    const entered = prev ? enterNamesForMonth(ym, prev).size : 0;
+    return { ym, enrolled, left, entered };
+  });
+  const n = Math.max(points.length, 1);
+  const padL = summary ? 32 : 44, padR = summary ? 10 : 12, padT = summary ? 58 : 40, padB = summary ? 40 : 36;
+  const H = summary ? 420 : 280;
+  const visibleN = (opts && opts.visible != null) ? opts.visible : 6;
+  let pairW, gap, slotW, plotW, W, scrollLeft;
+  if(summary){
+    W = 640;
+    plotW = W - padL - padR;
+    slotW = plotW / n;
+    pairW = Math.max(28, Math.min(58, slotW * 0.92));
+    gap = slotW - pairW;
+    scrollLeft = 0;
+  } else {
+    pairW = 30;
+    gap = 12;
+    slotW = pairW + gap;
+    plotW = Math.max(n * slotW, visibleN * slotW);
+    W = padL + plotW + padR;
+    scrollLeft = Math.max(0, (n - visibleN) * slotW);
+  }
+  const plotH = H - padT - padB;
+  const maxEn = Math.max(1, ...points.map(p => p.enrolled), 1);
+  const maxFlow = Math.max(1, ...points.map(p => Math.max(p.left, p.entered)), 1);
+  const axisMax = Math.max(maxEn * 1.12, maxFlow * 1.12, 10);
+  const xAt = i => padL + i * slotW + pairW / 2;
+  const yAt = v => padT + plotH * (1 - Math.min(v, axisMax) / axisMax);
+  const y0 = yAt(0);
+  let yTicks;
+  if(summary){
+    const mid = Math.round(axisMax * 0.5);
+    const midY = yAt(mid);
+    yTicks = [
+      `<line x1="${padL}" x2="${W-padR}" y1="${midY}" y2="${midY}" stroke="#2a3444" stroke-width="1"/>`,
+      `<text x="${padL-6}" y="${yAt(0)+3}" text-anchor="end" fill="#8b97a8" font-size="15">0</text>`,
+      `<text x="${padL-6}" y="${midY+3}" text-anchor="end" fill="#8b97a8" font-size="15">${mid}</text>`,
+      `<text x="${padL-6}" y="${yAt(axisMax)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${Math.round(axisMax)}</text>`
+    ].join('');
+  } else {
+    const tickFracs = [0, 0.25, 0.5, 0.75, 1];
+    const tickVals = tickFracs.map(t => Math.round(axisMax * t));
+    yTicks = tickVals.map(v => {
+      const y = yAt(v);
+      return `<line x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}" stroke="#2a3444" stroke-width="1"/>
+      <text x="${padL-6}" y="${y+3}" text-anchor="end" fill="#8b97a8" font-size="10">${v}</text>`;
+    }).join('');
+  }
+  const barGap = summary ? 3 : 2;
+  const barW = Math.max(summary ? 10 : 5, (pairW - barGap) / 2);
+  const bars = points.map((p, i) => {
+    const cx = xAt(i);
+    const parts = [];
+    const ye = yAt(p.enrolled);
+    const he = Math.max(2, y0 - ye);
+    const enOp = summary ? 0.55 : 0.28;
+    const vFs = summary ? 17 : 10;
+    const fFs = summary ? 17 : 9;
+    const mFs = summary ? 16 : 10;
+    parts.push(`<rect class="stu-flow-hit" data-ym="${p.ym}" x="${(cx - pairW/2).toFixed(1)}" y="${ye.toFixed(1)}" width="${pairW}" height="${he.toFixed(1)}" rx="5" fill="var(--fee)" opacity="${enOp}" style="cursor:pointer"/>`);
+    parts.push(`<text x="${cx.toFixed(1)}" y="${(ye-10).toFixed(1)}" text-anchor="middle" fill="var(--fee)" font-size="${vFs}" font-weight="700" stroke="#0b0f14" stroke-width="4" paint-order="stroke" style="paint-order:stroke fill;pointer-events:none">${p.enrolled}</text>`);
+    if(p.entered){
+      const y = yAt(p.entered);
+      const h = Math.max(3, y0 - y);
+      const x = cx - pairW / 2;
+      parts.push(`<rect class="stu-flow-hit" data-ym="${p.ym}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="var(--inc)" opacity="1" style="cursor:pointer"/>`);
+      parts.push(`<text x="${(x + barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" fill="var(--inc)" font-size="${fFs}" font-weight="700" stroke="#0b0f14" stroke-width="2.5" paint-order="stroke" style="paint-order:stroke fill;pointer-events:none">${p.entered}</text>`);
+    }
+    if(p.left){
+      const y = yAt(p.left);
+      const h = Math.max(3, y0 - y);
+      const x = cx - pairW / 2 + barW + barGap;
+      parts.push(`<rect class="stu-flow-hit" data-ym="${p.ym}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="var(--exp)" opacity="1" style="cursor:pointer"/>`);
+      parts.push(`<text x="${(x + barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" fill="var(--exp)" font-size="${fFs}" font-weight="700" stroke="#0b0f14" stroke-width="2.5" paint-order="stroke" style="paint-order:stroke fill;pointer-events:none">${p.left}</text>`);
+    }
+    const label = String(Number(p.ym.slice(5)));
+    if(summary){
+      parts.push(`<text x="${cx.toFixed(1)}" y="${H-12}" text-anchor="middle" fill="#8b97a8" font-size="${mFs}" style="pointer-events:none">${label}</text>`);
+    } else {
+      const yr = p.ym.slice(0,4);
+      const showYr = i === 0 || yms[i-1].slice(0,4) !== yr;
+      parts.push(`<text x="${cx.toFixed(1)}" y="${H-12}" text-anchor="middle" fill="#8b97a8" font-size="${mFs}" style="pointer-events:none">${showYr?yr.slice(2)+'.':''}${label}</text>`);
+    }
+    parts.push(`<rect class="stu-flow-hit" data-ym="${p.ym}" x="${(cx - slotW/2).toFixed(1)}" y="${padT}" width="${slotW.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`);
+    return parts.join('');
+  }).join('');
+  const svgSize = summary
+    ? `viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet"`
+    : `viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:${W}px;height:${H}px;display:block"`;
+  return {
+    yms, points, width: W, scrollLeft, summary,
+    svg: `<svg ${svgSize} role="img" aria-label="재원생·입소·퇴소 상세">
+      ${yTicks}
+      ${bars}
+    </svg>`
+  };
+}
+
+
+
+const GRADE_LADDER = [
+  ['초등',1],['초등',2],['초등',3],['초등',4],['초등',5],['초등',6],
+  ['중등',1],['중등',2],['중등',3],
+  ['고등',1],['고등',2],['고등',3]
+];
+
+function gradeAsOfYear(){
+  // 시트 학년은 gradeAsOf(연도) 또는 updated 연도 기준으로 두고, 그 다음 해 1월 1일부터 승급
+  const raw = (DATA.gradeAsOf != null && DATA.gradeAsOf !== '')
+    ? String(DATA.gradeAsOf)
+    : String(DATA.updated || currentYmSeoul());
+  const y = parseInt(raw.slice(0,4), 10);
+  return Number.isFinite(y) ? y : parseInt(currentYmSeoul().slice(0,4), 10);
+}
+
+function promoteStepsNow(){
+  const nowY = parseInt(currentYmSeoul().slice(0,4), 10);
+  return Math.max(0, nowY - gradeAsOfYear());
+}
+
+function parseStudentGrade(s){
+  const g1 = (s && s.grade1) ? String(s.grade1).trim() : '';
+  const g2raw = s && s.grade2;
+  let g2 = (g2raw!=null && g2raw!=='') ? Number(g2raw) : NaN;
+  if(!g1 && s && s.grade){
+    const m = String(s.grade).trim().match(/^(초등|중등|고등)\s*(\d+)/);
+    if(m) return { g1:m[1], g2:Number(m[2]), label:m[1]+' '+m[2] };
+    if(String(s.grade).includes('성인')) return { g1:'성인', g2:null, label:'성인' };
+  }
+  if(g1==='성인') return { g1:'성인', g2:null, label:'성인' };
+  if(g1 && Number.isFinite(g2)) return { g1, g2, label: g1+' '+g2 };
+  if(g1) return { g1, g2:null, label:g1 };
+  return { g1:'기타', g2:null, label:(s && s.grade) || '미분류' };
+}
+
+function effectiveStudentGrade(s){
+  const base = parseStudentGrade(s);
+  const steps = promoteStepsNow();
+  if(!steps || !['초등','중등','고등'].includes(base.g1) || !Number.isFinite(base.g2)){
+    return { ...base, steps:0, promoted:false };
+  }
+  const idx = GRADE_LADDER.findIndex(([a,b]) => a===base.g1 && b===base.g2);
+  if(idx < 0) return { ...base, steps:0, promoted:false };
+  const next = Math.min(idx + steps, GRADE_LADDER.length - 1);
+  const [g1,g2] = GRADE_LADDER[next];
+  return { g1, g2, label: g1+' '+g2, steps, promoted: next!==idx, baseLabel: base.label };
+}
+
+function gradeBandClass(g1){
+  if(g1==='초등') return 'el';
+  if(g1==='중등') return 'mid';
+  if(g1==='고등') return 'hi';
+  return 'other';
+}
+
+function gradeSortKey(eg){
+  const band = {초등:0, 중등:1, 고등:2, 성인:3, 기타:4}[eg.g1];
+  const b = band!=null ? band : 5;
+  const g2 = Number.isFinite(eg.g2) ? eg.g2 : 99;
+  return [b, g2, eg.label||''];
+}
+
+function compareStudentsByGrade(a, b){
+  const ea = effectiveStudentGrade(a), eb = effectiveStudentGrade(b);
+  const ka = gradeSortKey(ea), kb = gradeSortKey(eb);
+  for(let i=0;i<ka.length;i++){
+    if(ka[i] < kb[i]) return -1;
+    if(ka[i] > kb[i]) return 1;
+  }
+  return (a.name||'').localeCompare(b.name||'', 'ko');
+}
+
+function renderStudentChartDetail(){
+  const p = el('panel-students');
+  const chart = buildStudentEnrollBarChart();
+  const last = chart.points.length ? chart.points[chart.points.length - 1] : null;
+  const totEnter = chart.points.reduce((a,p)=>a+p.entered, 0);
+  const totLeave = chart.points.reduce((a,p)=>a+p.left, 0);
+  const rows = chart.points.slice().reverse().map(p => {
+    return `<div class="line stu-flow-row" data-ym="${p.ym}" style="cursor:pointer">
+      <div>
+        <div>${escHtml(shortYm(p.ym))}월</div>
+        <div class="m">재원 ${p.enrolled} · 입소 ${p.entered} · 퇴소 ${p.left}</div>
+      </div>
+      <div class="a" style="display:flex;gap:10px;align-items:center">
+        <span style="color:var(--inc);font-weight:700">+${p.entered}</span>
+        <span style="color:var(--exp);font-weight:700">-${p.left}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  p.innerHTML = `
+    <button class="back" id="backStuChart">← 학생 목록</button>
+    <div class="card">
+      <h2 style="margin:0">재원·입소·퇴소 상세</h2>
+      <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">전월까지 전체 · 막대·행 누르면 그달 입소·퇴소 목록</div>
+      <div class="metric" style="margin-top:8px"><span class="n">최근 재원</span><span class="a fee">${last ? last.enrolled+'명' : '-'}</span></div>
+      <div class="metric"><span class="n">기간 입소 합</span><span class="a inc">${totEnter}명</span></div>
+      <div class="metric"><span class="n">기간 퇴소 합</span><span class="a exp">${totLeave}명</span></div>
+    </div>
+    <div class="chart-wrap bars" id="stuEnrollDetailChart">
+      <div class="chart-hint">좌우 스크롤 · 탭하면 목록</div>
+      <div class="chart-scroll" id="stuEnrollScroll">${chart.svg}</div>
+      <div class="chart-legend">
+        <span><i style="background:var(--fee)"></i>재원생(납부+미납)</span>
+        <span><i style="background:var(--inc)"></i>입소(이번 달 신규)</span>
+        <span><i style="background:var(--exp)"></i>퇴소(전월 명단→이번 달 없음)</span>
+      </div>
+    </div>
+    <div class="card" style="padding:6px 14px;margin-top:10px">
+      <h2 style="margin:8px 0 4px">월별 요약</h2>
+      ${rows || '<div class="empty">데이터 없음</div>'}
+    </div>`;
+
+  el('backStuChart').onclick = ()=>{ state.stuView='list'; render(); };
+  const sc = el('stuEnrollScroll');
+  if(sc){
+    const go = ()=>{ sc.scrollLeft = chart.scrollLeft || Math.max(0, sc.scrollWidth - sc.clientWidth); };
+    requestAnimationFrame(()=>requestAnimationFrame(go));
+    if(typeof bindChartHDrag === 'function') bindChartHDrag(sc);
+  }
+  const openFlow = (ym)=>{
+    state.stuFlowYm = ym;
+    render();
+  };
+  p.querySelectorAll('.stu-flow-hit').forEach(h=>{
+    h.addEventListener('click', e=>{ e.stopPropagation(); openFlow(h.getAttribute('data-ym')); });
+  });
+  p.querySelectorAll('.stu-flow-row').forEach(r=>{
+    r.addEventListener('click', ()=> openFlow(r.getAttribute('data-ym')));
+  });
+}
+
+function renderStudentFlow(){
+  const p=el('panel-students');
+  const yms = studentChartMonths(24);
+  if(!yms.length){
+    p.innerHTML = `<button class="back" id="backStuFlow">← 학생 목록</button><div class="empty">교습비 월 데이터가 없어요</div>`;
+    el('backStuFlow').onclick=()=>{ state.stuFlowYm=null; render(); };
+    return;
+  }
+  if(!state.stuFlowYm || !yms.includes(state.stuFlowYm)) state.stuFlowYm = yms[yms.length-1];
+  const ym = state.stuFlowYm;
+  const prevYm = flowMonthPrev(ym);
+  const left = prevYm ? [...leaveNamesForMonth(ym, prevYm)] : [];
+  const entered = prevYm ? [...enterNamesForMonth(ym, prevYm)] : [];
+  left.sort((a,b)=>a.localeCompare(b,'ko'));
+  entered.sort((a,b)=>a.localeCompare(b,'ko'));
+
+  function personRow(name, kind){
+    const s = studentByName(name);
+    const eg = s ? effectiveStudentGrade(s) : null;
+    const meta = s
+      ? `${escHtml(eg.label||s.grade||'-')} · ${escHtml(s.school||'-')} · ${escHtml(s.status||'')}`
+      : '명단에 없음 · 납부 기록 기준';
+    const color = kind==='leave' ? 'var(--exp)' : 'var(--inc)';
+    const tag = kind==='leave' ? '퇴소' : '입소';
+    return `<div class="stu-card" data-name="${escHtml(name)}" style="cursor:${s?'pointer':'default'}">
+      <div class="top"><span class="name">${escHtml(name)}</span><span class="badge" style="color:${color};background:transparent;border:1px solid ${color}">${tag}</span></div>
+      <div class="meta"><span>${meta}</span></div>
+    </div>`;
+  }
+
+  p.innerHTML = `
+    <button class="back" id="backStuFlow">${state.stuView==='chartDetail'?'← 그래프 상세':'← 학생 목록'}</button>
+    <div class="card">
+      <h2 style="margin:0">${escHtml(shortYm(ym))}월 입소·퇴소</h2>
+      <div class="sub" style="margin-top:6px;color:var(--muted);font-size:.82rem">교습비 납부·미납 명단 기준${prevYm? ' · 전월 '+escHtml(shortYm(prevYm)): ' · 전월 없음'}</div>
+      <div class="metric" style="margin-top:8px"><span class="n">입소</span><span class="a inc">${entered.length}명</span></div>
+      <div class="metric"><span class="n">퇴소</span><span class="a exp">${left.length}명</span></div>
+    </div>
+    <div class="seg" id="segStuFlow">${yms.slice().reverse().map(x=>`<button data-ym="${x}" class="${x===ym?'on':''}">${shortYm(x)}</button>`).join('')}</div>
+    <div class="stu-sec el"><span class="t" style="color:var(--inc)">입소</span><span class="n">${entered.length}명</span></div>
+    ${entered.length ? entered.map(n=>personRow(n,'enter')).join('') : '<div class="empty" style="padding:16px 10px">이달 입소 없음</div>'}
+    <div class="stu-sec hi"><span class="t" style="color:var(--exp)">퇴소</span><span class="n">${left.length}명</span></div>
+    ${left.length ? left.map(n=>personRow(n,'leave')).join('') : '<div class="empty" style="padding:16px 10px">이달 퇴소 없음</div>'}
+    <div class="bank-hint" style="margin-top:10px">입소: 이번 달 명단에 새로 등장 · 퇴소: 전월 명단에서 이번 달 명단으로 사라짐</div>`;
+
+  el('backStuFlow').onclick=()=>{ state.stuFlowYm=null; render(); };
+  el('segStuFlow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.stuFlowYm=b.dataset.ym; render(); });
+  p.querySelectorAll('.stu-card[data-name]').forEach(c=>{
+    const s = studentByName(c.dataset.name);
+    if(!s) return;
+    c.onclick=()=>{ state.stuFlowYm=null; state.stuView='list'; state.stuName=c.dataset.name; render(); };
+  });
+}
+
+function renderStudents(){
+  const p=el('panel-students');
+  const all=DATA.students||[];
+  const steps = promoteStepsNow();
+  const asOfY = gradeAsOfYear();
+  if(state.stuFlowYm){ renderStudentFlow(); return; }
+  if(state.stuView==='chartDetail'){ renderStudentChartDetail(); return; }
+  if(state.stuName){
+    const s=all.find(x=>x.name===state.stuName);
+    if(!s){ state.stuName=null; }
+    else {
+      const eg = effectiveStudentGrade(s);
+      const hist=studentTuitionHistory(s.name);
+      const enroll=(DATA.enroll||{})[s.name]||'';
+      const gradeShow = eg.promoted
+        ? `${eg.label} <span style="color:var(--muted);font-weight:500;font-size:.82rem">(시트 ${eg.baseLabel}·${steps}년 승급)</span>`
+        : (eg.label||'-');
+      const rows=[
+        ['상태', s.status],
+        ['학년', gradeShow],
+        ['학교', s.school||'-'],
+        ['반유형', s.classType||'-'],
+        ['교습비', s.tuition? won(s.tuition):'-'],
+        ['결제 방법', s.payMethod||'-'],
+        ['결제자', s.payer||'-'],
+        ['결제일', s.payNote||'-'],
+        ['첫 결제일', s.firstPay||'-'],
+        ['정기 결제일', s.regularPay||'-'],
+        ['등원 추정', enroll||'-'],
+        ['주소', s.address||'-'],
+        ['학부모 연락', s.phoneParent||'-'],
+        ['학생 연락', s.phoneStudent||'-'],
+        ['카카오', s.kakao||'-'],
+        ['형제', s.siblings||'-'],
+        ['주요과목', s.subjects||'-'],
+        ['출생', s.birthYear? (s.birthYear+' · '+(s.age!=null?s.age+'세':'')) : '-'],
+      ];
+      p.innerHTML=`
+        <button class="back" id="backStu">← 학생 목록</button>
+        <div class="card">
+          <h2 style="margin:0">${escHtml(s.name)}</h2>
+          <div class="sub" style="margin-top:4px;color:var(--muted)">${escHtml(eg.label||'')} · ${escHtml(s.status||'')}</div>
+        </div>
+        <div class="card stu-detail">
+          ${rows.map(([k,v])=>`<div class="row"><span class="k">${k}</span><span class="v">${typeof v==='string'&&v.includes('<')?v:escHtml(v||'-')}</span></div>`).join('')}
+        </div>
+        <div class="card">
+          <h2>교습비 이력</h2>
+          ${hist.length? hist.map(h=>`<div class="metric"><span class="n">${koShortYm(h.ym)}${h.day? ' · '+h.day.slice(5):''}</span><span class="a ${h.status==='납부'?'fee':'warn'}">${h.status} ${won(h.status==='납부'?h.amt:h.expected)}</span></div>`).join('') : '<div class="empty">교습비 현황에 기록 없음</div>'}
+        </div>`;
+      el('backStu').onclick=()=>{ state.stuName=null; render(); };
+      return;
+    }
+  }
+
+  const q=(state.q||'').trim().toLowerCase();
+  const filt=state.stuFilt||'재학';
+  const counts={재학:0,휴원:0,퇴소:0,기타:0,전체:all.length};
+  all.forEach(s=>{ counts[s.bucket]=(counts[s.bucket]||0)+1; });
+  let list=all.filter(s=> filt==='전체' ? true : s.bucket===filt);
+  if(q){
+    list=list.filter(s=>{
+      const eg=effectiveStudentGrade(s);
+      return [s.name,s.school,eg.label,s.grade,s.address,s.payer,s.subjects,s.phoneParent].join(' ').toLowerCase().includes(q);
+    });
+  }
+  list = list.slice().sort(compareStudentsByGrade);
+  const curYm=currentYmSeoul();
+  const block=(DATA.tuition||{})[curYm]||{paid:[],unpaid:[]};
+  const paidSet=new Set((block.paid||[]).map(x=>x.name));
+  const unpaidSet=new Set((block.unpaid||[]).map(x=>x.name));
+
+  const keepFocus = document.activeElement && document.activeElement.id==='stuQ';
+  const caret = keepFocus ? document.activeElement.selectionStart : null;
+  const stuChart = buildStudentEnrollBarChart({summary:true});
+
+  // group 초등 → 중등 → 고등 → 기타
+  const bandOrder = ['초등','중등','고등','성인','기타'];
+  const groups = {};
+  list.forEach(s=>{
+    const eg = effectiveStudentGrade(s);
+    const band = bandOrder.includes(eg.g1) ? eg.g1 : '기타';
+    if(!groups[band]) groups[band] = [];
+    groups[band].push({ s, eg });
+  });
+
+  function cardHtml(s, eg){
+    let badge='';
+    if(s.bucket==='재학'){
+      if(paidSet.has(s.name)) badge='<span class="badge on">이달 납부</span>';
+      else if(unpaidSet.has(s.name)) badge='<span class="badge off">이달 미납</span>';
+      else badge='<span class="badge">이달 기록없음</span>';
+    } else if(s.bucket==='휴원') badge='<span class="badge wait">휴원</span>';
+    else if(s.bucket==='퇴소') badge='<span class="badge off">퇴소</span>';
+    else badge=`<span class="badge">${escHtml(s.status||'')}</span>`;
+    return `<div class="stu-card" data-name="${escHtml(s.name)}">
+      <div class="top"><span class="name">${escHtml(s.name)}</span>${badge}</div>
+      <div class="meta">
+        <span>${escHtml(eg.label||'-')}${eg.promoted?' ↑':''}</span>
+        <span>${escHtml(s.school||'-')}</span>
+        <span>${escHtml(s.classType||'')}</span>
+        <span>${escHtml(s.payMethod||'')}</span>
+      </div>
+      <div class="amt">${s.tuition? won(s.tuition):'-'}</div>
+    </div>`;
+  }
+
+  let listHtml = '';
+  if(!list.length){
+    listHtml = '<div class="empty">해당하는 학생이 없어요</div>';
+  } else {
+    bandOrder.forEach(band=>{
+      const items = groups[band];
+      if(!items || !items.length) return;
+      listHtml += `<div class="stu-sec ${gradeBandClass(band)}"><span class="t">${band}</span><span class="n">${items.length}명</span></div>`;
+      let lastG = null;
+      items.forEach(({s, eg})=>{
+        const gkey = eg.label;
+        if(gkey !== lastG){
+          listHtml += `<div class="stu-grade-tag">${escHtml(gkey)}</div>`;
+          lastG = gkey;
+        }
+        listHtml += cardHtml(s, eg);
+      });
+    });
+  }
+
+  const promoteNote = steps > 0
+    ? `${asOfY}년 시트 학년 기준 · ${steps}회 승급 반영(매년 1월 1일)`
+    : `학년은 ${asOfY}년 시트 기준 · 다음 승급 ${asOfY+1}.1.1`;
+
+  p.innerHTML=`
+    <div class="chart-wrap bars ytd" id="stuEnrollChart">
+      <div class="chart-hint">최근 9개월 · 탭하면 상세</div>
+      <div class="chart-scroll" id="stuEnrollScroll">${stuChart.svg}</div>
+      <div class="chart-legend">
+        <span><i style="background:var(--fee)"></i>재원</span>
+        <span><i style="background:var(--inc)"></i>입소</span>
+        <span><i style="background:var(--exp)"></i>퇴소</span>
+      </div>
+    </div>
+    <input class="stu-search" id="stuQ" placeholder="이름·학교·학년 검색" value="${escHtml(state.q||'')}"/>
+    <div class="seg" id="segStu">
+      ${['재학','휴원','퇴소','기타','전체'].map(f=>`<button data-f="${f}" class="${filt===f?'on':''}">${f} ${f==='전체'?counts.전체:(counts[f]||0)}</button>`).join('')}
+    </div>
+    <div class="card" style="margin-bottom:10px">
+      <div class="metric"><span class="n">표시</span><span class="a">${list.length}명</span></div>
+      <div class="sub" style="color:var(--muted);margin-top:4px">초등→중등→고등 · 저학년부터 · ${promoteNote}</div>
+      <div class="sub" style="color:var(--muted);margin-top:2px">시트 «학생 명단» · ${koShortYm(curYm)} 납부 ${paidSet.size} · 미납 ${unpaidSet.size}</div>
+    </div>
+    ${listHtml}`;
+
+  const sq=el('stuQ');
+  if(sq){
+    let composing=false;
+    const applyQ=()=>{ const v=sq.value; if(v===state.q) return; state.q=v; render(); };
+    sq.addEventListener('compositionstart',()=>{ composing=true; });
+    sq.addEventListener('compositionend',()=>{ composing=false; applyQ(); });
+    sq.addEventListener('input',()=>{ if(!composing) applyQ(); });
+    if(keepFocus){
+      sq.focus();
+      const pos = caret!=null ? caret : sq.value.length;
+      try{ sq.setSelectionRange(pos,pos); }catch(e){}
+    }
+  }
+  el('segStu').querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.stuFilt=b.dataset.f; state.q=el('stuQ')?el('stuQ').value:state.q; render(); });
+  p.querySelectorAll('.stu-card[data-name]').forEach(c=>c.onclick=()=>{ state.stuName=c.dataset.name; render(); });
+  const chart = el('stuEnrollChart');
+  if(chart){
+    chart.addEventListener('click', ()=> goStudentChartDetail());
+  }
+  // summary: no h-scroll / bindChartHDrag
+}
+
+function escHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function bankMonths(){
+  return Object.keys(DATA.monthDetails||{}).sort();
+}
+
+function bankPath(l){
+  const parts = [l.dir, l.cat2, l.cat3].filter(x => x && x !== '-');
+  // drop duplicate consecutive (교습비/교습비)
+  const out = [];
+  parts.forEach(p => { if(out[out.length-1] !== p) out.push(p); });
+  return out;
+}
+
+function buildBankCatTree(lines){
+  const root = {};
+  lines.forEach(l => {
+    const d = l.dir || '기타';
+    const c2 = l.cat2 || '-';
+    const c3 = l.cat3 || '-';
+    const amt = Number(l.amt)||0;
+    if(!root[d]) root[d] = { name:d, amt:0, n:0, kids:{} };
+    root[d].amt += amt; root[d].n += 1;
+    if(!root[d].kids[c2]) root[d].kids[c2] = { name:c2, amt:0, n:0, kids:{} };
+    root[d].kids[c2].amt += amt; root[d].kids[c2].n += 1;
+    if(!root[d].kids[c2].kids[c3]) root[d].kids[c2].kids[c3] = { name:c3, amt:0, n:0 };
+    root[d].kids[c2].kids[c3].amt += amt; root[d].kids[c2].kids[c3].n += 1;
+  });
+  const order = {'수입':0,'지출':1};
+  return Object.values(root).sort((a,b)=>(order[a.name]??9)-(order[b.name]??9)).map(n1 => ({
+    name: n1.name, amt: n1.amt, n: n1.n,
+    kids: Object.values(n1.kids).sort((a,b)=>Math.abs(b.amt)-Math.abs(a.amt)).map(n2 => ({
+      name: n2.name, amt: n2.amt, n: n2.n,
+      kids: Object.values(n2.kids).sort((a,b)=>Math.abs(b.amt)-Math.abs(a.amt))
+    }))
+  }));
+}
+
+function renderBank(){
+  const p = el('panel-bank');
+  const months = bankMonths().slice().reverse();
+  if(!months.length){
+    p.innerHTML = `    <div class="bank-upload-row">
+      <div class="bank-upload-copy">
+        <div class="t">은행 거래내역 업로드</div>
+        <div class="s">통장 CSV·엑셀 + 카드·동백 JSON·증빙 사진 함께 · 사진은 서버 OCR</div>
+      </div>
+      <button type="button" class="upload-btn" id="bankUploadBtn">업로드</button>
+    </div>
+    <div class="upload-status" id="uploadStatus" hidden></div>
+    <div class="empty">은행 거래내역이 아직 없습니다</div>`;
+    bindBankUpload();
+    return;
+  }
+  if(!state.bankMonth || !months.includes(state.bankMonth)) state.bankMonth = months[0];
+  let lines = bankLinesForMonth(state.bankMonth);
+  lines.sort((a,b)=>{
+    const da = a.day || '';
+    const db = b.day || '';
+    if(da !== db) return db.localeCompare(da);
+    return (Number(b.amt)||0) - (Number(a.amt)||0);
+  });
+  if(state.dirFilt==='inc') lines = lines.filter(x=>x.dir==='수입');
+  if(state.dirFilt==='exp') lines = lines.filter(x=>x.dir==='지출');
+  if(state.q){
+    const q = state.q.toLowerCase();
+    lines = lines.filter(x => (x.student+' '+x.memo+' '+x.cat2+' '+x.cat3+' '+x.dir).toLowerCase().includes(q));
+  }
+  let sumLines = bankLinesForMonth(state.bankMonth);
+  if(state.dirFilt==='inc') sumLines = sumLines.filter(x=>x.dir==='수입');
+  if(state.dirFilt==='exp') sumLines = sumLines.filter(x=>x.dir==='지출');
+  const sumInc = sumLines.filter(x=>x.dir==='수입').reduce((s,x)=>s+(Number(x.amt)||0),0);
+  const sumExp = sumLines.filter(x=>x.dir==='지출').reduce((s,x)=>s+(Number(x.amt)||0),0);
+  const catalog = bankCatCatalog();
+
+  let editModal = '';
+  if(state.bankEdit){
+    const e = state.bankEdit;
+    const dir = e.dir || '지출';
+    const c2opts = Object.keys((catalog[dir]||{})).sort();
+    const cat2 = e.cat2 || c2opts[0] || '';
+    let c3opts = ((catalog[dir]||{})[cat2]||[]).slice();
+    if(e.cat3 && !c3opts.includes(e.cat3)) c3opts = [e.cat3].concat(c3opts);
+    const cat3 = e.cat3 || c3opts[0] || '';
+    editModal = `<div class="modal-bg" id="bankCatModal">
+      <div class="modal">
+        <h3>분류 수정</h3>
+        <p>${escHtml(e.title||'거래')} · ${escHtml((e.day||'').slice(5)||'')}</p>
+        <label>수입 · 지출</label>
+        <select id="bankEditDir">
+          <option value="수입" ${dir==='수입'?'selected':''}>수입</option>
+          <option value="지출" ${dir==='지출'?'selected':''}>지출</option>
+        </select>
+        <label>중분류</label>
+        <select id="bankEditCat2">
+          ${c2opts.map(x=>`<option value="${escHtml(x)}" ${x===cat2?'selected':''}>${escHtml(x)}</option>`).join('')}
+          ${cat2 && !c2opts.includes(cat2)?`<option value="${escHtml(cat2)}" selected>${escHtml(cat2)}</option>`:''}
+        </select>
+        <label>세부분류</label>
+        <select id="bankEditCat3">
+          ${c3opts.map(x=>`<option value="${escHtml(x)}" ${x===cat3?'selected':''}>${escHtml(x)}</option>`).join('')}
+        </select>
+        <label>직접 입력 (세부분류)</label>
+        <input class="cat-in" id="bankEditCat3In" placeholder="새 세부분류" value=""/>
+        <div class="acts" style="margin-top:16px">
+          <button type="button" class="cancel" id="bankEditCancel">취소</button>
+          <button type="button" class="ok" id="bankEditSave">저장</button>
+        </div>
+        <button type="button" class="xbtn" id="bankEditReset" style="width:100%;margin-top:10px">원래 분류로 되돌리기</button>
+      </div>
+    </div>`;
+  }
+
+  p.innerHTML = `
+    <div class="bank-upload-row">
+      <div class="bank-upload-copy">
+        <div class="t">은행 거래내역 업로드</div>
+        <div class="s">통장 CSV·엑셀 + 카드·동백 JSON·증빙 사진 함께 · 사진은 서버 OCR</div>
+      </div>
+      <button type="button" class="upload-btn" id="bankUploadBtn">업로드</button>
+    </div>
+    <div class="upload-status" id="uploadStatus" hidden></div>
+    <div class="bank-hint">시트에 반영된 은행 거래예요. 각 줄의 <b style="color:var(--text)">분류</b>를 누르면 수입·지출 · 중분류 · 세부분류를 고칠 수 있어요. 수정은 이 기기에 저장되고, 분석 서버가 켜져 있으면 시트 반영 대기열에도 올라갑니다. Master에게 «분류 시트 반영»이라고 하면 구글 시트 J/K/L에 씁니다.</div>
+    <div style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="upload-btn" id="catPendingCheckBtn" style="font-size:.82rem;padding:8px 12px">분류 수정 시트 대기 확인</button>
+    </div>
+    <div class="seg" id="segBank">${months.map(ym=>`<button data-ym="${ym}" class="${ym===state.bankMonth?'on':''}">${shortYm(ym)}</button>`).join('')}</div>
+    <div class="card">
+      <h2>${shortYm(state.bankMonth)}월 합계</h2>
+      <div class="metric"><span class="n">수입 · ${sumLines.filter(x=>x.dir==='수입').length}건</span><span class="a inc">${won(sumInc)}</span></div>
+      <div class="metric"><span class="n">지출 · ${sumLines.filter(x=>x.dir==='지출').length}건</span><span class="a exp">${won(sumExp)}</span></div>
+      <div class="metric"><span class="n">전체 · ${sumLines.length}건</span><span class="a">${won(sumInc+sumExp)}</span></div>
+    </div>
+    <div class="filt">
+      <button data-f="all" class="${state.dirFilt==='all'?'on':''}">전체</button>
+      <button data-f="inc" class="${state.dirFilt==='inc'?'on':''}">수입</button>
+      <button data-f="exp" class="${state.dirFilt==='exp'?'on':''}">지출</button>
+    </div>
+    <input class="search" id="bankQ" placeholder="학생·메모·분류 검색" value="${escHtml(state.q)}"/>
+    <div class="card" style="padding:6px 14px">
+      <div style="padding:8px 0 4px;font-size:.82rem;color:var(--muted)">거래 ${lines.length}건</div>
+      ${lines.length ? lines.map(l=>{
+        const path = bankPath(l);
+        const title = escHtml(l.student || l.memo || path[path.length-1] || l.dir || '거래');
+        const memoBit = (l.memo && l.memo !== l.student) ? escHtml(l.memo.slice(0,32)) : '';
+        const day = (l.day||'').slice(5) || '날짜없음';
+        const color = l.dir==='지출' ? 'var(--exp)' : ((l.cat2==='교습비'||l.cat3==='교습비')?'var(--fee)':'var(--inc)');
+        const pathHtml = path.map((x,i)=> i===path.length-1 ? '<b>'+escHtml(x)+'</b>' : escHtml(x)).join(' › ');
+        return `<div class="line" data-bank-key="${escHtml(l._bankKey)}">
+          <div>
+            <div>${title}</div>
+            <div class="tx-path${l._edited?' edited':''}" data-edit="1">${pathHtml}</div>
+            <div class="m">${day}${memoBit? ' · '+memoBit:''}</div>
+            <button type="button" class="cat-edit" data-edit="1">분류 수정</button>
+          </div>
+          <div class="a" style="color:${color}">${won(l.amt)}</div>
+        </div>`;
+      }).join('') : '<div class="empty">해당 없음</div>'}
+    </div>
+    ${editModal}`;
+
+  el('segBank').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    state.bankMonth=b.dataset.ym; state.bankCat=''; state.q=''; state.bankEdit=null; render();
+  });
+  p.querySelectorAll('.filt button').forEach(b=>b.onclick=()=>{ state.dirFilt=b.dataset.f; state.bankCat=''; state.bankEdit=null; render(); });
+  const bq = el('bankQ');
+  if(bq){
+    bq.oninput = ()=>{ state.q = bq.value; };
+    bq.onchange = ()=>{ state.q = bq.value; render(); };
+    bq.onkeydown = e=>{ if(e.key==='Enter'){ state.q=bq.value; render(); } };
+  }
+  const openEdit = (key)=>{
+    const all = bankLinesForMonth(state.bankMonth);
+    const l = all.find(x=>x._bankKey===key);
+    if(!l) return;
+    state.bankEdit = {
+      key: l._bankKey,
+      dir: l.dir,
+      cat2: l.cat2 || '',
+      cat3: l.cat3 || '',
+      title: l.student || l.memo || '거래',
+      day: l.day || ''
+    };
+    render();
+  };
+  p.querySelectorAll('[data-edit="1"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const row = btn.closest('.line');
+      if(row) openEdit(row.getAttribute('data-bank-key'));
+    });
+  });
+  if(state.bankEdit){
+    const dirSel = el('bankEditDir');
+    const c2Sel = el('bankEditCat2');
+    const c3Sel = el('bankEditCat3');
+    const refillC2 = ()=>{
+      const d = dirSel.value;
+      const opts = Object.keys((catalog[d]||{})).sort();
+      const cur = state.bankEdit.cat2;
+      c2Sel.innerHTML = opts.map(x=>`<option value="${escHtml(x)}" ${x===cur?'selected':''}>${escHtml(x)}</option>`).join('');
+      if(cur && !opts.includes(cur)){
+        const o=document.createElement('option'); o.value=cur; o.textContent=cur; o.selected=true; c2Sel.appendChild(o);
+      }
+      if(!c2Sel.value && opts[0]) c2Sel.value = opts[0];
+      state.bankEdit.dir = d;
+      state.bankEdit.cat2 = c2Sel.value;
+      refillC3();
+    };
+    const refillC3 = ()=>{
+      const d = dirSel.value;
+      const c2 = c2Sel.value;
+      let opts = ((catalog[d]||{})[c2]||[]).slice();
+      const cur = state.bankEdit.cat3;
+      if(cur && !opts.includes(cur)) opts = [cur].concat(opts);
+      c3Sel.innerHTML = opts.map(x=>`<option value="${escHtml(x)}" ${x===cur?'selected':''}>${escHtml(x)}</option>`).join('');
+      if(!c3Sel.value && opts[0]) c3Sel.value = opts[0];
+      state.bankEdit.cat2 = c2;
+      state.bankEdit.cat3 = c3Sel.value;
+    };
+    dirSel.onchange = ()=>{ state.bankEdit.dir = dirSel.value; refillC2(); };
+    c2Sel.onchange = ()=>{ state.bankEdit.cat2 = c2Sel.value; refillC3(); };
+    c3Sel.onchange = ()=>{ state.bankEdit.cat3 = c3Sel.value; };
+    el('bankEditCancel').onclick = ()=>{ state.bankEdit=null; render(); };
+    el('bankCatModal').addEventListener('click', e=>{ if(e.target.id==='bankCatModal'){ state.bankEdit=null; render(); } });
+    el('bankEditSave').onclick = ()=>{
+      const custom = (el('bankEditCat3In').value||'').trim();
+      const dir = dirSel.value;
+      const cat2 = c2Sel.value;
+      const cat3 = custom || c3Sel.value;
+      const key = state.bankEdit.key;
+      const map = loadCatOverrides();
+      map[key] = { dir, cat2, cat3 };
+      saveCatOverrides(map);
+      const line = (bankLinesRaw(state.bankMonth)||[])[parseInt(String(key).split('#')[1],10)] || {};
+      const idx = parseInt(String(key).split('#')[1],10);
+      const item = {
+        id: key,
+        match: {
+          day: line.day || state.bankEdit.day || '',
+          ym: state.bankMonth,
+          amt: line.amt,
+          student: line.student || '',
+          memo: line.memo || ''
+        },
+        dir, cat2, cat3
+      };
+      if(!Number.isNaN(idx)) item.match.index = idx;
+      state.bankEdit = null;
+      render();
+      queueCatOverrideItem(item).then(r=>{
+        if(r && r.ok){
+          const n = (r.data && r.data.preview && r.data.preview.count)
+            || (r.data && r.data.queue && r.data.queue.items && r.data.queue.items.length)
+            || '';
+          setUploadStatus('분류 수정 저장 · 시트 대기열에 올렸습니다'+(n!==''?' · 대기 '+n+'건':'')+'. Master에게 «분류 시트 반영»이라고 하면 구글 시트에 씁니다.', 'ok');
+        }
+        /* fail soft: localStorage already saved */
+      });
+    };
+    el('bankEditReset').onclick = ()=>{
+      const map = loadCatOverrides();
+      delete map[state.bankEdit.key];
+      saveCatOverrides(map);
+      state.bankEdit = null;
+      render();
+    };
+  }
+  const catBtn = el('catPendingCheckBtn');
+  if(catBtn) catBtn.onclick = ()=>{ checkPendingCatOverrides(); };
+  bindBankUpload();
+}
+
+
+function render(){
+  if(state.tab==='sales') renderSales();
+  else if(state.tab==='months') renderMonths();
+  else if(state.tab==='suji') renderSuji();
+  else if(state.tab==='fee') renderFee();
+  else if(state.tab==='students') renderStudents();
+  else if(state.tab==='bank') renderBank();
+}
+/* ===== 구글 시트 직접 동기화 (맥미니 서버 불필요) ===== */
+const SHEET_ID = '10TQRPxfmD5sgaF-zF4EnYEwTrGAzS4lK5Ij8EvEUF_I';
+function sheetCsvUrl(name){ return 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&headers=0&sheet='+encodeURIComponent(name)+'&t='+Date.now(); }
+function parseCsv(text){
+  const rows=[]; let row=[], f='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ f+='"'; i++; } else q=false; } else f+=c; }
+    else if(c==='"') q=true;
+    else if(c===','){ row.push(f); f=''; }
+    else if(c==='\n'){ row.push(f); rows.push(row); row=[]; f=''; }
+    else if(c!=='\r') f+=c;
+  }
+  if(f!=='' || row.length){ row.push(f); rows.push(row); }
+  return rows;
+}
+const _s = v => (v==null ? '' : String(v).trim());
+function _num(v){ const t=_s(v).replace(/,/g,''); if(t==='') return 0; const f=Number(t); return isFinite(f)?f:0; }
+function _ym(v){ const t=_s(v); return (t.length>=7 && t[4]==='-') ? t.slice(0,7) : ''; }
+function _cmp(a,b){ return a<b?-1:a>b?1:0; }
+function _pad(r,n){ while(r.length<n) r.push(''); return r; }
+function _target(r){
+  const m=/^(\d+)월/.exec(_s(r[19])), y=/^(\d{4})/.exec(_s(r[20]));
+  if(m && y) return y[1]+'-'+String(+m[1]).padStart(2,'0')+'-01';
+  return _s(r[19]);
+}
+function buildLedger(bankRows, rosRows){
+  const B = bankRows.map(r=>_pad(r.slice(),30));
+  const hi = B.findIndex(r=>r.some(c=>_s(c)==='대상자'));
+  if(hi<0) throw new Error('통장거래내역 머리글(대상자)을 못 찾았어요');
+  const bank = B.slice(hi+1).map(r=>{ r=r.slice(); r[19]=_target(r); return r; });
+  const ros = rosRows.map(r=>_pad(r.slice(),30));
+  const GORDER={'초등':0,'중등':1,'고등':2,'성인':3}, BORDER={'재학':0,'휴원':1,'퇴소':2,'기타':3};
+  // students
+  const students=[];
+  for(const r of ros.slice(1)){
+    const name=_s(r[1]);
+    if(!name || ['이름','합계','대기 명단','퇴소 명단'].includes(name) || _s(r[7])==='상태') continue;
+    if(!(_s(r[0])!=='' || _s(r[4]) || _s(r[7]))) continue;
+    const status=_s(r[7])||'미정', g1=_s(r[4]);
+    const g2v = _s(r[5])!=='' ? _num(r[5]) : null;
+    const grade=(g1+(g2v!=null?' '+g2v:'')).trim();
+    const bucket=['재학','휴원','퇴소'].includes(status)?status:'기타';
+    students.push({name, birthYear:_s(r[2]), age:_s(r[3])!==''?_num(r[3]):null, grade1:g1, grade2:g2v, grade,
+      address:_s(r[6]), status, tuition:_num(r[8]), classType:_s(r[10]), school:_s(r[11]), phoneStudent:_s(r[12]),
+      phoneParent:_s(r[13]), kakao:_s(r[14]), payNote:_s(r[16]), firstPay:_s(r[18]), regularPay:_s(r[19]),
+      payMethod:_s(r[21]), payer:_s(r[22]), siblings:_s(r[23]), subjects:_s(r[24]), bucket});
+  }
+  const gk=x=>[BORDER[x.bucket], (x.grade1 in GORDER)?GORDER[x.grade1]:9, typeof x.grade2==='number'?x.grade2:99, x.name];
+  students.sort((a,b)=>{ const A=gk(a),Bk=gk(b); for(let i=0;i<4;i++){ const c=_cmp(A[i],Bk[i]); if(c) return c; } return 0; });
+  // month details
+  const md={};
+  for(const r of bank){
+    const ym=_s(r[8]); if(!ym) continue;
+    const e={dir:_s(r[9]), cat2:_s(r[10]), cat3:_s(r[11]), amt:_num(r[12]), day:_s(r[0]), memo:_s(r[5]), student:_s(r[16])};
+    if(e.amt===0 || (e.dir!=='수입' && e.dir!=='지출')) continue;
+    (md[ym]=md[ym]||[]).push(e);
+  }
+  const mdSorted={}; Object.keys(md).sort().forEach(k=>mdSorted[k]=md[k]);
+  // tuition
+  const fee=bank.filter(r=>_s(r[10])==='교습비' && _s(r[9])==='수입' && _s(r[16]) && _ym(r[19]));
+  const enroll={};
+  for(const r of fee){ const n=_s(r[16]), m=_ym(r[19]); if(_num(r[12])>0 && (!(n in enroll) || m<enroll[n])) enroll[n]=m; }
+  const roster={}; for(const st of students) if(!(st.name in roster)) roster[st.name]=st;
+  const bill=[...new Set(fee.map(r=>_ym(r[19])))].sort();
+  const tuition={};
+  for(const ym of bill){
+    const agg=new Map();
+    for(const r of fee){
+      if(_ym(r[19])!==ym) continue;
+      const n=_s(r[16]);
+      if(!agg.has(n)) agg.set(n,{name:n,amt:0,grade:_s(r[17]),day:''});
+      const a=agg.get(n); a.amt+=_num(r[12]);
+      const dy=_s(r[0]); if(dy && _num(r[12])>0 && dy>a.day) a.day=dy;
+    }
+    const paid=[];
+    for(const a of agg.values()){ if(a.amt<=0) continue;
+      paid.push({name:a.name, amt:a.amt, expected:(roster[a.name]||{}).tuition||0, grade:a.grade, day:a.day, status:'paid'}); }
+    paid.sort((x,y)=>(y.amt-x.amt)||_cmp(x.name,y.name));
+    const pn=new Set(paid.map(p=>p.name));
+    const unpaid=[];
+    for(const st of students){
+      if(st.bucket!=='재학' || pn.has(st.name)) continue;
+      const en=enroll[st.name]; if(!en || en>ym) continue;
+      unpaid.push({name:st.name, amt:0, expected:st.tuition||0, grade:st.grade, day:'', status:'unpaid', enroll:en});
+    }
+    unpaid.sort((x,y)=>(y.expected-x.expected)||_cmp(x.name,y.name));
+    tuition[ym]={paidTotal:paid.reduce((t,p)=>t+p.amt,0), paidCount:paid.length,
+      unpaidTotal:unpaid.reduce((t,u)=>t+u.expected,0), unpaidCount:unpaid.length, paid, unpaid};
+  }
+  // months / suji / totals
+  const months=[], suji={}, tot={income:0,expense:0,fee:0};
+  const byAbs=(a,b)=>Math.abs(b[1])-Math.abs(a[1]);
+  for(const [ym,v] of Object.entries(mdSorted)){
+    let inc=0,exp=0,fe=0; const c=new Map();
+    for(const x of v){ if(x.dir==='수입') inc+=x.amt; if(x.dir==='지출') exp+=x.amt; if(x.dir==='수입'&&x.cat2==='교습비') fe+=x.amt;
+      const k=x.dir+'/'+x.cat2; c.set(k,(c.get(k)||0)+x.amt); }
+    const top=[...c.entries()].sort(byAbs).filter(e=>e[1]!==0).map(([k,val])=>({k,v:val}));
+    months.push({ym,income:inc,expense:exp,fee:fe,top});
+    const tree=new Map();
+    for(const x of v){ if(!tree.has(x.dir)) tree.set(x.dir,new Map()); const c2=tree.get(x.dir);
+      if(!c2.has(x.cat2)) c2.set(x.cat2,new Map()); const c3=c2.get(x.cat2); c3.set(x.cat3,(c3.get(x.cat3)||0)+x.amt); }
+    const sj=[];
+    for(const [dname,c2] of [...tree.entries()].sort((a,b)=>['수입','지출'].indexOf(a[0])-['수입','지출'].indexOf(b[0]))){
+      const kids=[];
+      for(const [c2n,c3] of c2.entries()){
+        const k3=[...c3.entries()].sort(byAbs).map(([name,amt])=>({name,amt}));
+        kids.push({name:c2n, amt:k3.reduce((t,k)=>t+k.amt,0), kids:k3});
+      }
+      kids.sort((a,b)=>Math.abs(b.amt)-Math.abs(a.amt));
+      sj.push({name:dname, amt:kids.reduce((t,k)=>t+k.amt,0), kids});
+    }
+    suji[ym]=sj; tot.income+=inc; tot.expense+=exp; tot.fee+=fe;
+  }
+  const latest=bill.length?bill[bill.length-1]:'';
+  const first=months.length?months[0].ym:latest;
+  const fmt=ym=>ym.slice(0,4)+'.'+(+ym.slice(5));
+  const now=new Date(), p2=n=>String(n).padStart(2,'0');
+  return {title:'엄궁 코오롱 공부방', scope:fmt(first)+' ~ '+fmt(latest),
+    note:'교습비 입금 있는 달까지('+latest+') · 납부=순액>0 · 미납=재학·첫납부월 이후',
+    updated: now.getFullYear()+'-'+p2(now.getMonth()+1)+'-'+p2(now.getDate()), latestFeeMonth:latest,
+    totals:tot, months, monthDetails:mdSorted, suji, tuition, billMonths:bill, enroll, students};
+}
+
+function applyNewData(nd){
+  if(!nd || !nd.monthDetails) return false;
+  Object.keys(DATA).forEach(k=>{ delete DATA[k]; });
+  Object.assign(DATA, nd);
+  renderTotals();
+  render();
+  return true;
+}
+function setSyncStatus(msg){ const s=el('syncStatus'); if(s) s.textContent=msg||''; }
+function _stamp(){ const d=new Date(),p=n=>String(n).padStart(2,'0'); return (d.getMonth()+1)+'/'+d.getDate()+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+function _gvizRows(resp){
+  const t=resp.table, nc=t.cols.length;
+  return (t.rows||[]).map(r=>{ const out=[]; for(let i=0;i<nc;i++){ const c=(r.c||[])[i]; out.push(c==null?'':(c.f!=null?String(c.f):(c.v==null?'':String(c.v)))); } return out; });
+}
+let _gvizSeq=0;
+function fetchSheetRows(name){
+  // 스크립트 태그 방식: 파일로 열어도(file://) 막히지 않음
+  return new Promise((resolve,reject)=>{
+    const cb='__jangbuCb'+(++_gvizSeq)+'_'+Date.now();
+    const sc=document.createElement('script');
+    const done=()=>{ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } sc.remove(); clearTimeout(tm); };
+    const tm=setTimeout(()=>{ done(); reject(new Error(name+' 응답 없음')); }, 20000);
+    window[cb]=resp=>{ done();
+      if(!resp || resp.status==='error' || !resp.table) reject(new Error(name+' 읽기 실패 (시트 공개 설정을 확인해 주세요)'));
+      else resolve(_gvizRows(resp)); };
+    sc.onerror=()=>{ done(); reject(new Error(name+' 불러오기 실패')); };
+    sc.src='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json;responseHandler:'+cb+'&headers=0&sheet='+encodeURIComponent(name)+'&t='+Date.now();
+    document.head.appendChild(sc);
+  });
+}
+async function syncFromSheet(silent){
+  const btn = el('syncBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ 동기화 중…'; }
+  setSyncStatus('구글 시트에서 불러오는 중');
+  try{
+    const [bankRows, rosRows] = await Promise.all([fetchSheetRows('통장거래내역'), fetchSheetRows('학생 명단')]);
+    const nd = buildLedger(bankRows, rosRows);
+    nd.syncedAt = _stamp();
+    applyNewData(nd);
+    try{ localStorage.setItem('jangbuCache', JSON.stringify(nd)); }catch(e){}
+    setSyncStatus('시트 최신 ' + nd.syncedAt);
+  }catch(e){
+    setSyncStatus(DATA.updated ? '오프라인 · 마지막 저장 '+(DATA.syncedAt||DATA.updated) : '시트를 불러오지 못했어요');
+    if(!silent) alert('동기화 실패\n' + (e && e.message ? e.message : e) + '\n\n인터넷 연결을 확인해 주세요.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '🔄 시트 동기화'; }
+  }
+}
+renderTotals();
+bindBankUpload();
+render();
+(function(){ const b=el('syncBtn'); if(b) b.onclick = ()=>syncFromSheet(false); })();
+syncFromSheet(true);
+</script>
+</body>
+</html>
