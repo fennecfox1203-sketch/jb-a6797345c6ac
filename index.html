@@ -2213,9 +2213,11 @@ function unpaidNamesFor(ym){
   prevMonths(ym, LEAVE_MONTHS-1).forEach(m => { if(m) paidSetFor(m).forEach(n => { if(!cur.has(n)) out.add(n); }); });
   return out;
 }
+function sheetLeftSet(){ return new Set((DATA.students||[]).filter(x=>x && x.bucket==='퇴소').map(x=>x.name)); }
 function rosterNamesFor(ym){
-  const s = paidSetFor(ym);
-  unpaidNamesFor(ym).forEach(n => s.add(n));
+  // 재원 = 이번 달 납부 + 최근 미납(시트 '퇴소' 학생은 미납 기간 없이 바로 제외)
+  const s = paidSetFor(ym), gone = sheetLeftSet();
+  unpaidNamesFor(ym).forEach(n => { if(!gone.has(n)) s.add(n); });
   return s;
 }
 
@@ -2224,8 +2226,10 @@ function leaveNamesForMonth(ym, prevYm){
   const ms = prevMonths(ym, LEAVE_MONTHS);
   const base = ms[LEAVE_MONTHS-1]; if(!base) return new Set();
   const recent = [ym, ...ms.slice(0, LEAVE_MONTHS-1)].filter(Boolean).map(paidSetFor);
-  const out = new Set();
-  paidSetFor(base).forEach(n => { if(!recent.some(x => x.has(n))) out.add(n); });
+  const out = new Set(), gone = sheetLeftSet(), cur = paidSetFor(ym);
+  paidSetFor(base).forEach(n => { if(!gone.has(n) && !recent.some(x => x.has(n))) out.add(n); });
+  // 시트 '퇴소' 학생: 마지막 납부 다음 달에 퇴소
+  if(ms[0]) paidSetFor(ms[0]).forEach(n => { if(gone.has(n) && !cur.has(n)) out.add(n); });
   return out;
 }
 
@@ -2610,7 +2614,7 @@ function renderStudentFlow(){
     <div class="seg" id="segStuFlow">${yms.slice().reverse().map(x=>`<button data-ym="${x}" class="${x===ym?'on':''}">${shortYm(x)}</button>`).join('')}</div>
     <div class="stu-sec hi"><span class="t" style="color:var(--exp)">퇴소</span><span class="n">${left.length}명</span></div>
     ${left.length ? left.map(n=>personRow(n,'leave')).join('') : '<div class="empty" style="padding:16px 10px">이달 퇴소 없음</div>'}
-    <div class="bank-hint" style="margin-top:10px">퇴소: 3개월 연속 교습비 납부 없음</div>`;
+    <div class="bank-hint" style="margin-top:10px">퇴소: 3개월 연속 교습비 납부 없음 · 시트 «학생 명단»에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>`;
 
   el('backStuFlow').onclick=()=>{ state.stuFlowYm=null; render(); };
   el('segStuFlow').querySelectorAll('button').forEach(b=>b.onclick=()=>{ state.stuFlowYm=b.dataset.ym; render(); });
@@ -2640,7 +2644,7 @@ function renderStudents(){
     <div class="card">
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}재원</span><span class="a fee">${last?last.enrolled+'명':'-'}</span></div>
       <div class="metric"><span class="n">${last?escHtml(shortYm(last.ym))+'월 ':''}퇴소</span><span class="a exp">${last?last.left+'명':'-'}</span></div>
-      <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 최근 3개월 안에 교습비 낸 학생 · 퇴소 = 3개월 연속 납부 없음</div>
+      <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 최근 3개월 안에 교습비 낸 학생 · 퇴소 = 3개월 연속 납부 없음, 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달</div>
     </div>`;
   const chart = el('stuEnrollChart');
   if(chart) chart.addEventListener('click', ()=> goStudentChartDetail());
