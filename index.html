@@ -235,6 +235,8 @@ header p{margin:6px 0 0;color:var(--muted);font-size:.86rem}
 .stu-sec.mid .t{color:#6aa8ff}
 .stu-sec.hi .t{color:#c4a0ff}
 .stu-sec.other .t{color:var(--muted)}
+.nx-chart svg{width:100%;height:auto;display:block;margin:8px 0 2px}
+.nx-card .metric .a{white-space:nowrap}
 .stu-grade-tag{font-size:.72rem;color:var(--muted);font-weight:600;margin:8px 2px 6px}
 
 </style>
@@ -1147,6 +1149,7 @@ function renderMonths(){
         <span><i style="background:var(--exp)"></i>지출</span>
       </div>
     </div>
+    ${expenseStackHtml()}
     <div class="card" style="margin-bottom:10px;padding:10px 12px">
       <div class="sub" style="margin:0;color:var(--muted)">월을 누르면 상세 · 그래프 탭하면 전체 월 스크롤</div>
     </div>
@@ -1165,6 +1168,7 @@ function renderMonths(){
   if(wrap){
     wrap.addEventListener('click', ()=> goMonthsChartDetail());
   }
+  bindExpenseStack(p);
   // summary: no h-scroll / bindChartHDrag
   p.querySelectorAll('.row').forEach(r=>r.onclick=()=>{state._monthsFromChart=false;state.month=r.dataset.ym;state.view='detail';state.dirFilt='all';state.q='';render();});
 }
@@ -1334,6 +1338,7 @@ function renderSuji(){
         <span><i style="background:var(--exp)"></i>마이너스 현금흐름</span>
       </div>
     </div>
+    ${cumFlowHtml()}
     <div class="seg" id="segS">${months.map(ym=>`<button data-ym="${ym}" class="${ym===state.month?'on':''}">${shortYm(ym)}</button>`).join('')}</div>
     <div class="card" style="padding:4px 0">
       ${tree.map((n1,i1)=>`
@@ -1370,6 +1375,7 @@ function renderSuji(){
     });
   }
   // summary: no h-scroll / bindChartHDrag
+  bindCumFlow(p);
 el('segS').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.month=b.dataset.ym;render();});
   const segOn = el('segS') && el('segS').querySelector('button.on');
   if(segOn && typeof segOn.scrollIntoView === 'function'){
@@ -1477,6 +1483,7 @@ function renderFee(){
         <div class="metric"><span class="n">미납</span><span class="a warn">${allCount}명 · ${won(allTotal)}</span></div>
         <div class="metric"><span class="n">기간</span><span class="a">${allGroups.length? shortYm(allGroups[0].ym)+' ~ '+shortYm(allGroups[allGroups.length-1].ym):'—'}</span></div>
       </div>
+      ${collectionHtml()}
       <input class="search" id="qFee" placeholder="학생·학년 검색" value="${(state.q||'').replace(/"/g,'&quot;')}"/>
       ${body}
       ${modalHtml}`;
@@ -1576,6 +1583,7 @@ function renderFee(){
     };
     el('modalBg').onclick=(e)=>{ if(e.target.id==='modalBg'){ state.confirm=null; render(); } };
   }
+  bindCollection(p);
   const qi=el('qFee');
   if(qi) qi.oninput=()=>{state.q=qi.value; clearTimeout(window._qt); window._qt=setTimeout(render,180);};
 }
@@ -2678,7 +2686,8 @@ function renderStudents(){
       <div class="sub" style="color:var(--muted);margin-top:4px;font-size:.8rem">실제 교습비 납부 기준 · 재원 = 교습비 납부 학생(잠깐 밀린 달 포함) · 신규 = 전달 재원에 없다가 이번 달 납부 · 퇴소 = 3개월 연속 납부 없으면 납부 끊긴 달로 기록, 시트에 퇴소로 적힌 학생은 바로</div>
     </div>
     ${last?buildGradeDonut(last.ym):''}
-    ${buildGradeSalesLine(pts.map(x=>x.ym))}`;
+    ${buildGradeSalesLine(pts.map(x=>x.ym))}
+    ${arpuHtml()}`;
   const chart = el('stuEnrollChart');
   if(chart) chart.addEventListener('click', ()=> goStudentChartDetail());
 }
@@ -2719,6 +2728,251 @@ function buildGradeSalesLine(yms){
     <div class="sub" style="color:var(--muted);font-size:.78rem;margin-bottom:6px">입금 기준 · 단위 만원 · 아래 금액은 ${escHtml(shortYm(yms[lastI]))}월</div>
     <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${grid}${xl}${lines}</svg>
     ${legend}</div>`;
+}
+
+/* ===== 추가 그래프: 지출 항목 추이 · 교습비 수납률 · 1인당 평균 교습비 · 누적 현금흐름 ===== */
+const NX_W = 640, NX_H = 400;
+const EXP_STACK_COLORS = ['#ff6b7a','#ffb020','#c084fc','#22d3ee','#f472b6','#94a3b8'];
+const nxMan = v => { const m = v/10000; return Math.abs(m) >= 10 ? String(Math.round(m)) : String(Math.round(m*10)/10); };
+const nxHalo = (x, y, fill, txt, fs, anchor) => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor||'middle'}" fill="${fill}" font-size="${fs||17}" font-weight="700" stroke="#0b0f14" stroke-width="4" paint-order="stroke" style="paint-order:stroke fill;pointer-events:none">${txt}</text>`;
+const nxMonthLab = (x, txt, cur) => `<text x="${x.toFixed(1)}" y="${NX_H-12}" text-anchor="middle" fill="${cur?'#e8eef7':'#8b97a8'}" font-size="16" font-weight="${cur?700:400}" style="pointer-events:none">${txt}</text>`;
+const nxSvg = (inner, label) => `<svg viewBox="0 0 ${NX_W} ${NX_H}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${label}">${inner}</svg>`;
+function nxPct(a, b){ return b ? Math.round(a/b*1000)/10 : 0; }
+function nxDelta(cur, prev, unit){
+  if(prev == null) return '';
+  const d = cur - prev;
+  if(!d) return '<span style="color:var(--muted)">전월과 같음</span>';
+  const up = d > 0;
+  const txt = unit==='won' ? won(Math.abs(d)) : (Math.round(Math.abs(d)*10)/10)+unit;
+  return `<span style="color:var(--muted)">전월 ${up?'▲':'▼'} ${txt}</span>`;
+}
+
+/* 1) 지출 항목별 월 추이 (누적 막대) — 완료된 달(전월)까지 */
+function expenseStackData(){
+  const pv = prevYmSeoul();
+  const yms = filterYtdYms(Object.keys(DATA.suji||{}).filter(ym => ym <= pv), pv);
+  const tot = {};
+  const per = yms.map(ym => {
+    const {exp} = monthSujiParts(ym); const o = {};
+    (exp.kids||[]).forEach(k => { const v = Number(k.amt)||0; o[k.name] = (o[k.name]||0) + v; tot[k.name] = (tot[k.name]||0) + v; });
+    return {ym, cats:o, total:Number(exp.amt)||0};
+  });
+  const main = Object.keys(tot).filter(c => c !== '기타' && tot[c] > 0).sort((a,b) => tot[b]-tot[a]).slice(0,5);
+  const hasOther = Object.keys(tot).some(c => !main.includes(c) && tot[c]);
+  const cats = hasOther ? main.concat(['기타']) : main;
+  per.forEach(p => {
+    const o = {}; cats.forEach(c => o[c] = 0);
+    Object.entries(p.cats).forEach(([c,v]) => { if(main.includes(c)) o[c] += v; else o['기타'] += v; });
+    p.cats = o;
+  });
+  return {yms, cats, points:per};
+}
+function buildExpenseStackChart(){
+  const d = expenseStackData();
+  if(!d.points.length) return null;
+  const padL = 54, padR = 10, padT = 46, padB = 40, plotW = NX_W-padL-padR, plotH = NX_H-padT-padB;
+  const n = d.points.length, slot = plotW / n, barW = Math.max(26, Math.min(64, slot*0.62));
+  const maxV = Math.max(1, ...d.points.map(p => d.cats.reduce((a,c) => a + Math.max(0,p.cats[c]), 0)));
+  const axisMax = Math.max(Math.ceil(maxV*1.12/1000000)*1000000, 1000000);
+  const yAt = v => padT + plotH*(1 - v/axisMax);
+  const mid = Math.round(axisMax/2/10000)*10000;
+  let s = `<line x1="${padL}" x2="${NX_W-padR}" y1="${yAt(mid)}" y2="${yAt(mid)}" stroke="#2a3444"/>`
+    + `<text x="${padL-6}" y="${yAt(0)+3}" text-anchor="end" fill="#8b97a8" font-size="15">0</text>`
+    + `<text x="${padL-6}" y="${yAt(mid)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(mid)}</text>`
+    + `<text x="${padL-6}" y="${yAt(axisMax)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(axisMax)}</text>`;
+  d.points.forEach((p,i) => {
+    const cx = padL + slot*(i+0.5), x = cx - barW/2; let acc = 0;
+    d.cats.forEach((c,ci) => {
+      const v = Math.max(0, p.cats[c]); if(!v) return;
+      const y1 = yAt(acc), y2 = yAt(acc+v); acc += v;
+      s += `<rect x="${x.toFixed(1)}" y="${y2.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1,y1-y2).toFixed(1)}" fill="${EXP_STACK_COLORS[ci%EXP_STACK_COLORS.length]}" stroke="#151b24" stroke-width="1"/>`;
+      if(y1-y2 >= 22) s += `<text x="${cx.toFixed(1)}" y="${((y1+y2)/2+5).toFixed(1)}" text-anchor="middle" fill="#0b0f14" font-size="14" font-weight="700" style="pointer-events:none">${nxMan(v)}</text>`;
+    });
+    s += nxHalo(cx, yAt(acc)-10, 'var(--exp)', nxMan(p.total));
+    s += nxMonthLab(cx, String(Number(p.ym.slice(5))), i===n-1);
+    s += `<rect class="nx-exp-hit" data-ym="${p.ym}" x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+  });
+  return {...d, svg: nxSvg(s, '월별 지출 항목 누적 막대')};
+}
+function expenseStackHtml(){
+  const c = buildExpenseStackChart(); if(!c) return '';
+  const last = c.points[c.points.length-1], prev = c.points.length>1 ? c.points[c.points.length-2] : null;
+  const rows = c.cats.map((cat,i) => {
+    const v = last.cats[cat]||0;
+    return `<div class="metric"><span class="n"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${EXP_STACK_COLORS[i%EXP_STACK_COLORS.length]};margin-right:6px"></i>${escHtml(cat)} <span style="font-size:.75rem">${nxPct(v,last.total)}%</span></span><span class="a" style="text-align:right">${won(v)}<br><span style="font-size:.72rem;font-weight:400">${nxDelta(v, prev?prev.cats[cat]||0:null, 'won')}</span></span></div>`;
+  }).join('');
+  return `<div class="card nx-card" id="nxExpCard">
+    <h2 style="margin-bottom:2px">지출 항목별 추이</h2>
+    <div class="sub" style="color:var(--muted);font-size:.78rem">통장 기준 · 끝난 달까지 · 단위 만원 · 막대 누르면 그 달 지출</div>
+    <div class="nx-chart">${c.svg}</div>
+    <div class="chart-legend" style="justify-content:center">${c.cats.map((cat,i)=>`<span><i style="background:${EXP_STACK_COLORS[i%EXP_STACK_COLORS.length]}"></i>${escHtml(cat)}</span>`).join('')}</div>
+    <div class="sub" style="color:var(--muted);font-size:.8rem;margin:6px 0 2px">${escHtml(longYmLabel(last.ym))} 지출 ${won(last.total)}</div>
+    ${rows}</div>`;
+}
+function bindExpenseStack(root){
+  (root||document).querySelectorAll('.nx-exp-hit').forEach(h => h.addEventListener('click', e => { e.stopPropagation(); goMonthDetail(h.getAttribute('data-ym'), 'exp'); }));
+}
+
+/* 2) 교습비 수납률·미납 추이 — 납부대상월 기준, 이번 달은 진행 중 */
+function collectionData(){
+  const cur = currentYmSeoul();
+  const yms = filterYtdYms((DATA.billMonths||[]).filter(ym => ym <= cur), cur);
+  return yms.map(ym => {
+    const b = (DATA.tuition||{})[ym] || {};
+    const un = unpaidVisibleFor(ym);
+    const paid = b.paidTotal||0, unpaid = un.reduce((a,s) => a+(s.expected||0), 0);
+    return {ym, paid, paidCount:b.paidCount||0, unpaid, unpaidCount:un.length, rate:nxPct(paid, paid+unpaid), cur: ym===cur};
+  });
+}
+function buildCollectionChart(){
+  const pts = collectionData(); if(!pts.length) return null;
+  const padL = 54, padR = 10, padT = 50, padB = 40, plotW = NX_W-padL-padR, plotH = NX_H-padT-padB;
+  const n = pts.length, slot = plotW/n, barW = Math.max(26, Math.min(64, slot*0.62));
+  const axisMax = Math.max(Math.ceil(Math.max(1,...pts.map(p => p.paid+p.unpaid))*1.12/1000000)*1000000, 1000000);
+  const yAt = v => padT + plotH*(1 - v/axisMax);
+  const mid = Math.round(axisMax/2/10000)*10000;
+  let s = `<line x1="${padL}" x2="${NX_W-padR}" y1="${yAt(mid)}" y2="${yAt(mid)}" stroke="#2a3444"/>`
+    + `<text x="${padL-6}" y="${yAt(0)+3}" text-anchor="end" fill="#8b97a8" font-size="15">0</text>`
+    + `<text x="${padL-6}" y="${yAt(mid)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(mid)}</text>`
+    + `<text x="${padL-6}" y="${yAt(axisMax)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(axisMax)}</text>`;
+  pts.forEach((p,i) => {
+    const cx = padL + slot*(i+0.5), x = cx - barW/2, op = p.cur ? 0.55 : 1;
+    const yp = yAt(p.paid), yu = yAt(p.paid+p.unpaid);
+    s += `<rect x="${x.toFixed(1)}" y="${yp.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(2,yAt(0)-yp).toFixed(1)}" rx="4" fill="var(--fee)" opacity="${op}"/>`;
+    if(p.unpaid) s += `<rect x="${x.toFixed(1)}" y="${yu.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(2,yp-yu).toFixed(1)}" rx="4" fill="var(--warn)" opacity="${op}"/>`;
+    s += nxHalo(cx, yu-12, p.rate>=95 ? 'var(--inc)' : (p.rate>=85 ? '#e8eef7' : 'var(--warn)'), p.rate+'%');
+    s += nxMonthLab(cx, String(Number(p.ym.slice(5)))+(p.cur?'(진행)':''), p.cur);
+    s += `<rect class="nx-col-hit" data-ym="${p.ym}" x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+  });
+  return {points:pts, svg: nxSvg(s, '월별 교습비 수납률 막대')};
+}
+function collectionHtml(){
+  const c = buildCollectionChart(); if(!c) return '';
+  const done = c.points.filter(p => !p.cur);
+  const last = done[done.length-1], prev = done.length>1 ? done[done.length-2] : null, cur = c.points.find(p => p.cur);
+  return `<div class="card nx-card" id="nxColCard">
+    <h2 style="margin-bottom:2px">교습비 수납률 추이</h2>
+    <div class="sub" style="color:var(--muted);font-size:.78rem">납부대상월 기준 · 수납률 = 납부 ÷ (납부+미납 예정액) · 막대 누르면 그 달 명단</div>
+    <div class="nx-chart">${c.svg}</div>
+    <div class="chart-legend" style="justify-content:center"><span><i style="background:var(--fee)"></i>납부</span><span><i style="background:var(--warn)"></i>미납(명단 교습비)</span></div>
+    ${last ? `<div class="metric"><span class="n">${escHtml(shortYm(last.ym))}월 수납률</span><span class="a" style="text-align:right">${last.rate}%<br><span style="font-size:.72rem;font-weight:400">${nxDelta(last.rate, prev?prev.rate:null, '%p')}</span></span></div>
+    <div class="metric"><span class="n">${escHtml(shortYm(last.ym))}월 미납</span><span class="a warn">${last.unpaidCount}명 · ${won(last.unpaid)}</span></div>` : ''}
+    ${cur ? `<div class="metric"><span class="n">${escHtml(shortYm(cur.ym))}월 (진행 중)</span><span class="a fee">${cur.paidCount}명 납부 · ${cur.rate}%</span></div>` : ''}
+  </div>`;
+}
+function bindCollection(root){
+  (root||document).querySelectorAll('.nx-col-hit').forEach(h => h.addEventListener('click', e => { e.stopPropagation(); goFeeMonth(h.getAttribute('data-ym')); }));
+}
+
+/* 3) 학생 1인당 평균 교습비 — 납부대상월 기준, 전월까지 */
+function arpuData(){
+  return filterYtdYms(studentChartMonths(), prevYmSeoul()).map(ym => {
+    const b = (DATA.tuition||{})[ym] || {};
+    return {ym, total:b.paidTotal||0, count:b.paidCount||0, avg: b.paidCount ? Math.round((b.paidTotal||0)/b.paidCount) : 0};
+  });
+}
+function buildArpuChart(){
+  const pts = arpuData(); if(!pts.length) return null;
+  const padL = 54, padR = 16, padT = 50, padB = 40, plotW = NX_W-padL-padR, plotH = NX_H-padT-padB;
+  const n = pts.length, slot = plotW/n;
+  const maxV = Math.max(1, ...pts.map(p => p.avg));
+  const axisMax = Math.max(Math.ceil(maxV*1.25/20000)*20000, 100000);
+  const yAt = v => padT + plotH*(1 - v/axisMax), xAt = i => padL + slot*(i+0.5);
+  const mid = Math.round(axisMax/2/10000)*10000;
+  let s = `<line x1="${padL}" x2="${NX_W-padR}" y1="${yAt(mid)}" y2="${yAt(mid)}" stroke="#2a3444"/>`
+    + `<text x="${padL-6}" y="${yAt(0)+3}" text-anchor="end" fill="#8b97a8" font-size="15">0</text>`
+    + `<text x="${padL-6}" y="${yAt(mid)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(mid)}</text>`
+    + `<text x="${padL-6}" y="${yAt(axisMax)+3}" text-anchor="end" fill="#8b97a8" font-size="15">${axisLabel(axisMax)}</text>`;
+  /* 납부 인원은 옅은 막대(오른쪽 축 없이 높이만 참고) */
+  const maxC = Math.max(1, ...pts.map(p => p.count)), barW = Math.max(22, Math.min(54, slot*0.5));
+  pts.forEach((p,i) => {
+    const h = plotH*0.45*(p.count/maxC), y = yAt(0)-h;
+    s += `<rect x="${(xAt(i)-barW/2).toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(2,h).toFixed(1)}" rx="4" fill="var(--fee)" opacity=".22"/>`;
+    s += `<text x="${xAt(i).toFixed(1)}" y="${(yAt(0)-8).toFixed(1)}" text-anchor="middle" fill="#8b97a8" font-size="14">${p.count}명</text>`;
+  });
+  const line = pts.map((p,i) => `${xAt(i).toFixed(1)},${yAt(p.avg).toFixed(1)}`).join(' ');
+  s += `<polyline points="${line}" fill="none" stroke="#0b0f14" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${line}" fill="none" stroke="#8ec5ff" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  pts.forEach((p,i) => {
+    s += `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.avg).toFixed(1)}" r="5.5" fill="#8ec5ff" stroke="#0b0f14" stroke-width="1.5"/>`;
+    s += nxHalo(xAt(i), yAt(p.avg)-14, '#e8eef7', (p.avg/10000).toFixed(1)+'만');
+    s += nxMonthLab(xAt(i), String(Number(p.ym.slice(5))), i===n-1);
+  });
+  return {points:pts, svg: nxSvg(s, '월별 학생 1인당 평균 교습비')};
+}
+function arpuHtml(){
+  const c = buildArpuChart(); if(!c) return '';
+  const last = c.points[c.points.length-1], prev = c.points.length>1 ? c.points[c.points.length-2] : null;
+  const mExp = ((DATA.months||[]).find(m => m.ym===last.ym)||{}).expense || 0;
+  const be = last.avg ? Math.ceil(mExp/last.avg) : 0;
+  return `<div class="card nx-card" id="nxArpuCard">
+    <h2 style="margin-bottom:2px">학생 1인당 평균 교습비</h2>
+    <div class="sub" style="color:var(--muted);font-size:.78rem">납부대상월 기준 · 교습비 납부 합계 ÷ 납부 학생 수 · 옅은 막대 = 납부 학생 수</div>
+    <div class="nx-chart">${c.svg}</div>
+    <div class="metric"><span class="n">${escHtml(shortYm(last.ym))}월 1인 평균</span><span class="a fee" style="text-align:right">${won(last.avg)}<br><span style="font-size:.72rem;font-weight:400">${nxDelta(last.avg, prev?prev.avg:null, 'won')}</span></span></div>
+    <div class="metric"><span class="n">${escHtml(shortYm(last.ym))}월 납부</span><span class="a">${last.count}명 · ${won(last.total)}</span></div>
+    ${be ? `<div class="metric"><span class="n">손익분기 인원(추정)</span><span class="a ${be>last.count?'warn':'inc'}">약 ${be}명</span></div>
+    <div class="sub" style="color:var(--muted);font-size:.75rem;margin-top:4px">${escHtml(shortYm(last.ym))}월 통장 지출 ${won(mExp)} ÷ 1인 평균 ${won(last.avg)} — 이만큼 납부하면 지출을 메워요</div>` : ''}
+  </div>`;
+}
+
+/* 4) 누적 현금흐름 — 통장 기준, 첫 달부터 누적 */
+function cumFlowData(){
+  let acc = 0;
+  return sujiChartMonths(null).map(ym => {
+    const {inc, exp} = monthSujiParts(ym);
+    const i = Number(inc.amt)||0, e = Number(exp.amt)||0;
+    acc += i - e;
+    return {ym, inc:i, exp:e, flow:i-e, cum:acc, margin:nxPct(i-e, i)};
+  });
+}
+function buildCumFlowChart(){
+  const all = cumFlowData(); if(!all.length) return null;
+  const pts = all.slice(-9);
+  const cur = currentYmSeoul();
+  const padL = 54, padR = 16, padT = 50, padB = 40, plotW = NX_W-padL-padR, plotH = NX_H-padT-padB;
+  const n = pts.length, slot = plotW/n, xAt = i => padL + slot*(i+0.5);
+  const vals = pts.flatMap(p => [p.cum, p.flow]);
+  const hi = Math.max(0, ...vals), lo = Math.min(0, ...vals);
+  const span0 = Math.max(hi-lo, 1000000);
+  const top = hi + span0*0.14, bot = lo - span0*0.10;
+  const yAt = v => padT + plotH*(top - v)/(top - bot);
+  const y0 = yAt(0);
+  let s = `<line x1="${padL}" x2="${NX_W-padR}" y1="${y0}" y2="${y0}" stroke="#3a4660" stroke-width="1.5" stroke-dasharray="4 3"/>`
+    + `<text x="${padL-6}" y="${y0+4}" text-anchor="end" fill="#8b97a8" font-size="15">0</text>`;
+  const barW = Math.max(18, Math.min(44, slot*0.36));
+  pts.forEach((p,i) => {
+    const y = yAt(p.flow), t = Math.min(y, y0), h = Math.max(2, Math.abs(y0-y));
+    s += `<rect x="${(xAt(i)-barW/2).toFixed(1)}" y="${t.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="${p.flow>=0?'var(--inc)':'var(--exp)'}" opacity=".28"/>`;
+  });
+  const line = pts.map((p,i) => `${xAt(i).toFixed(1)},${yAt(p.cum).toFixed(1)}`).join(' ');
+  s += `<polyline points="${line}" fill="none" stroke="#0b0f14" stroke-width="6" stroke-linejoin="round"/><polyline points="${line}" fill="none" stroke="#e8eef7" stroke-width="3.2" stroke-linejoin="round"/>`;
+  pts.forEach((p,i) => {
+    const col = p.cum >= 0 ? 'var(--inc)' : 'var(--exp)';
+    s += `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.cum).toFixed(1)}" r="6" fill="${col}" stroke="#0b0f14" stroke-width="1.5"/>`;
+    s += nxHalo(xAt(i), yAt(p.cum) + (p.cum >= p.flow ? -14 : 26), col, nxMan(p.cum));
+    s += nxMonthLab(xAt(i), String(Number(p.ym.slice(5)))+(p.ym===cur?'(진행)':''), p.ym===cur);
+    s += `<rect class="nx-cum-hit" data-ym="${p.ym}" x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+  });
+  return {points:pts, all, svg: nxSvg(s, '누적 현금흐름 꺾은선')};
+}
+function cumFlowHtml(){
+  const c = buildCumFlowChart(); if(!c) return '';
+  const pv = prevYmSeoul();
+  const done = c.all.filter(p => p.ym <= pv);
+  const last = done[done.length-1] || c.all[c.all.length-1];
+  const sumInc = done.reduce((a,p) => a+p.inc, 0), sumFlow = done.reduce((a,p) => a+p.flow, 0);
+  return `<div class="card nx-card" id="nxCumCard">
+    <h2 style="margin-bottom:2px">누적 현금흐름</h2>
+    <div class="sub" style="color:var(--muted);font-size:.78rem">통장 기준 · 선 = ${escHtml(shortYm(c.all[0].ym))}월부터 쌓인 순현금 · 옅은 막대 = 그 달 현금흐름 · 단위 만원</div>
+    <div class="nx-chart">${c.svg}</div>
+    <div class="chart-legend" style="justify-content:center"><span><i style="background:#e8eef7"></i>누적</span><span><i style="background:var(--inc);opacity:.5"></i>월 플러스</span><span><i style="background:var(--exp);opacity:.5"></i>월 마이너스</span></div>
+    <div class="metric"><span class="n">${escHtml(shortYm(last.ym))}월까지 누적</span><span class="a" style="color:${last.cum>=0?'var(--inc)':'var(--exp)'}">${won(last.cum)}</span></div>
+    <div class="metric"><span class="n">${escHtml(shortYm(last.ym))}월 이익률</span><span class="a">${last.margin}%</span></div>
+    <div class="metric"><span class="n">기간 평균 이익률</span><span class="a">${nxPct(sumFlow, sumInc)}%</span></div>
+  </div>`;
+}
+function bindCumFlow(root){
+  (root||document).querySelectorAll('.nx-cum-hit').forEach(h => h.addEventListener('click', e => { e.stopPropagation(); state.month = h.getAttribute('data-ym'); render(); }));
 }
 
 function escHtml(s){
