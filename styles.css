@@ -66,6 +66,22 @@ h1 {
 .subhead { margin: 4px 0 0; color: var(--muted); font-size: .92rem; font-weight: 600; }
 .top-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
 .sync { font-size: .75rem; color: var(--muted); text-align: right; max-width: 46vw; line-height: 1.35; }
+.stale-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #8a5a12;
+  background: rgba(255, 176, 32, .14);
+  color: #ffd27a;
+  font-size: .86rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.stale-banner.err {
+  border-color: rgba(255, 109, 125, .45);
+  background: rgba(255, 109, 125, .12);
+  color: #ffc1c8;
+}
 .icon-btn, .btn, .back, .filt button, .seg button, .tab, .xbtn, .detail-toggle {
   min-height: var(--hit);
 }

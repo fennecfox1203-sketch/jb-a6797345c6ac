@@ -58,7 +58,7 @@
   function parseCsv(text) {
     const rows = [];
     let row = [], f = '', q = false;
-    const src = String(text || '');
+    const src = String(text || '').replace(/^\uFEFF/, '');
     for (let i = 0; i < src.length; i++) {
       const c = src[i];
       if (q) {
@@ -200,25 +200,219 @@
     return !!ym && ym <= currentYmSeoul();
   }
 
+  /* 머리글 비교. 앞뒤·사이 공백, 전각 공백, 장식 문자는 무시한다. */
+  function headerKey(v) {
+    return _s(v)
+      .replace(/[\s\u3000]+/g, '')
+      .replace(/[*＊:：;；.．·・()（）\[\]【】"'“”「」]/g, '')
+      .toLowerCase();
+  }
+
   function findHeaderCol(header, names) {
+    const want = (names || []).map(headerKey);
     const h = header || [];
     for (let i = 0; i < h.length; i++) {
-      if (names.indexOf(_s(h[i])) >= 0) return i;
+      const k = headerKey(h[i]);
+      if (k && want.indexOf(k) >= 0) return i;
     }
     return -1;
   }
 
+  function missingHeaderError(sheet, label) {
+    const err = new Error(sheet + '에서 ‘' + label + '’ 열을 찾지 못했어요.');
+    err.code = 'missing-header';
+    err.sheet = sheet;
+    err.header = label;
+    return err;
+  }
+
+  const ROSTER_FIELDS = [
+    { key: 'name', label: '이름', fallback: 1, synonyms: ['이름', '성명', '학생명', '학생이름'] },
+    { key: 'grade1', label: '학년1', fallback: 4, synonyms: ['학년1', '학년', '학교급'] },
+    { key: 'grade2', label: '학년2', fallback: 5, synonyms: ['학년2', '학년수', '상세학년'] },
+    { key: 'status', label: '상태', fallback: 7, synonyms: ['상태', '재학상태', '재원상태'] },
+    { key: 'tuition', label: '교습비', fallback: 8, synonyms: ['교습비', '수강료', '월교습비'] }
+  ];
+  const ROSTER_EXTRA_CONFLICTS = ['학교', '학교명', '주소', '거주지', '번호', '순번'];
+  const PAY_MONTH_FIELD = {
+    label: '납부월', fallback: 19, sheet: '통장거래내역',
+    synonyms: ['납부월', '대상월', '청구월', '수업월', '적용월', '납부대상월']
+  };
+  const PAY_YEAR_FIELD = {
+    label: '납부년도', fallback: 20, sheet: '통장거래내역',
+    synonyms: ['납부년', '납부년도', '납부연도', '년도', '연도']
+  };
+  const BANK_CONFLICTS = ['대상자', '금액', '적요', '내용', '날짜', '거래일', '거래일자', '구분', '수입지출', '대분류', '중분류', '소분류', '분류', '학년'];
+
+  function rosterConflicts(field) {
+    const out = ROSTER_EXTRA_CONFLICTS.map(headerKey);
+    ROSTER_FIELDS.forEach(function (other) {
+      if (other.key === field.key) return;
+      other.synonyms.forEach(function (s) { out.push(headerKey(s)); });
+    });
+    return out;
+  }
+
+  function bankConflicts(field) {
+    const out = BANK_CONFLICTS.map(headerKey);
+    const other = field === PAY_MONTH_FIELD ? PAY_YEAR_FIELD : PAY_MONTH_FIELD;
+    other.synonyms.forEach(function (s) { out.push(headerKey(s)); });
+    return out;
+  }
+
+  /* 머리글이 있으면 그 열을 쓰고, 없으면 예전 고정 위치를 쓴다.
+     고정 위치에 다른 머리글이 있으면 잘못된 열을 읽지 않고 빠뜨린 머리글 이름을 알린다. */
+  function pickColumn(header, field, conflicts) {
+    const idx = findHeaderCol(header, field.synonyms);
+    if (idx >= 0) return idx;
+    const cell = header && field.fallback < header.length ? header[field.fallback] : '';
+    const fbKey = headerKey(cell);
+    if (fbKey && conflicts.indexOf(fbKey) >= 0) {
+      throw missingHeaderError(field.sheet || '학생 명단', field.label);
+    }
+    return field.fallback;
+  }
+
+  function rosterHeaderScore(row) {
+    let n = 0;
+    let hasName = false;
+    ROSTER_FIELDS.forEach(function (f) {
+      if (findHeaderCol(row, f.synonyms) < 0) return;
+      n++;
+      if (f.key === 'name') hasName = true;
+    });
+    if (!hasName || n < 2) return 0;
+    return n;
+  }
+
+  function resolveRoster(rows) {
+    const list = rows || [];
+    let best = -1;
+    let bestScore = 0;
+    for (let i = 0; i < list.length; i++) {
+      const sc = rosterHeaderScore(list[i] || []);
+      if (sc > bestScore) { best = i; bestScore = sc; }
+    }
+    if (best < 0) {
+      const cols = {};
+      ROSTER_FIELDS.forEach(function (f) { cols[f.key] = f.fallback; });
+      return { headerIndex: 0, cols: cols };
+    }
+    const header = list[best];
+    const cols = {};
+    ROSTER_FIELDS.forEach(function (f) {
+      cols[f.key] = pickColumn(header, f, rosterConflicts(f));
+    });
+    return { headerIndex: best, cols: cols };
+  }
+
+  function isRosterSkipName(name) {
+    const t = _s(name);
+    if (!t) return true;
+    const k = headerKey(t);
+    if (!k) return true;
+    if (['이름', '성명', '학생명', '학생이름', '합계', '총계', '총합', '소계', '합계금액', '대기명단', '퇴소명단', '휴원명단', '재학명단'].indexOf(k) >= 0) return true;
+    if (k.indexOf('명단') >= 0 && k.length <= 16) return true;
+    if (k.indexOf('합계') >= 0 || k.indexOf('총계') >= 0 || k.indexOf('소계') >= 0) return true;
+    return false;
+  }
+
+  function delayMs(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  /* 한 번 = CSV 다음 gviz. 전체가 실패하면 tries만큼, 사이에는 짧은 대기를 둔다. */
+  async function tryCsvThenGviz(csvFn, gvizFn) {
+    try {
+      const rows = await csvFn();
+      if (rows && rows.length) return rows;
+    } catch (e) { /* gviz로 넘어간다 */ }
+    return gvizFn();
+  }
+
+  async function loadRowsRetry(loadOnce, opts) {
+    const tries = (opts && opts.tries) || 3;
+    const backoffs = (opts && opts.backoffs) || [400, 900];
+    const sleep = (opts && opts.sleep) || delayMs;
+    let lastErr;
+    for (let i = 0; i < tries; i++) {
+      try {
+        const rows = await loadOnce(i);
+        if (!rows) throw new Error('불러오기 실패');
+        return rows;
+      } catch (e) {
+        lastErr = e;
+        if (i < tries - 1) {
+          const wait = backoffs[i] != null ? backoffs[i] : backoffs[backoffs.length - 1];
+          await sleep(wait || 0);
+        }
+      }
+    }
+    throw lastErr || new Error('불러오기 실패');
+  }
+
+  function hhmmFromCache(cache) {
+    if (!cache) return '';
+    if (cache.cachedHHmm && /^\d{1,2}:\d{2}$/.test(String(cache.cachedHHmm))) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(cache.cachedHHmm));
+      return String(m[1]).padStart(2, '0') + ':' + m[2];
+    }
+    const sources = [cache.cachedAt, cache.syncedAt, cache.updated];
+    for (let i = 0; i < sources.length; i++) {
+      const s = _s(sources[i]);
+      if (!s) continue;
+      const m = /(\d{1,2}):(\d{2})/.exec(s);
+      if (m) return String(m[1]).padStart(2, '0') + ':' + m[2];
+    }
+    return '';
+  }
+
+  function syncFailureView(err, cache) {
+    const has = !!(cache && cache.monthDetails && Object.keys(cache.monthDetails).length);
+    if (err && err.code === 'missing-header') {
+      return { kind: 'schema', banner: err.message, data: has ? cache : null };
+    }
+    if (has) {
+      const hhmm = hhmmFromCache(cache);
+      const banner = hhmm
+        ? ('최신 자료를 불러오지 못해 ' + hhmm + ' 기준 자료를 보여 줘요')
+        : '최신 자료를 불러오지 못해 이전에 저장한 자료를 보여 줘요';
+      return { kind: 'stale', banner: banner, data: cache };
+    }
+    const msg = (err && err.message) ? String(err.message) : '시트를 불러오지 못했어요';
+    return { kind: 'empty', banner: msg, data: null };
+  }
+
+  function sheetWidth(rows, least) {
+    let n = least || 30;
+    (rows || []).forEach(function (r) { if (r && r.length > n) n = r.length; });
+    return n;
+  }
+
   function buildLedger(bankRows, rosRows) {
-    const B = (bankRows || []).map(function (r) { return _pad(r || [], 30); });
-    const hi = B.findIndex(function (r) { return r.some(function (c) { return _s(c) === '대상자'; }); });
-    if (hi < 0) throw new Error('통장거래내역 머리글(대상자)을 못 찾았어요');
+    const bankRaw = bankRows || [];
+    let hi = -1;
+    for (let i = 0; i < bankRaw.length; i++) {
+      if (findHeaderCol(bankRaw[i], ['대상자']) >= 0) { hi = i; break; }
+    }
+    if (hi < 0) throw missingHeaderError('통장거래내역', '대상자');
+    const bankHeader = bankRaw[hi] || [];
+    const monthIdx = pickColumn(bankHeader, PAY_MONTH_FIELD, bankConflicts(PAY_MONTH_FIELD));
+    const yearIdx = pickColumn(bankHeader, PAY_YEAR_FIELD, bankConflicts(PAY_YEAR_FIELD));
+    const bankWidth = Math.max(sheetWidth(bankRaw, 30), monthIdx + 1, yearIdx + 1);
+    const B = bankRaw.map(function (r) { return _pad(r || [], bankWidth); });
     const bank = B.slice(hi + 1).map(function (r) {
       const row = r.slice();
+      if (monthIdx !== 19) row[19] = r[monthIdx] == null ? '' : r[monthIdx];
+      if (yearIdx !== 20) row[20] = r[yearIdx] == null ? '' : r[yearIdx];
       row[19] = _target(row);
       return row;
     });
-    const ros = (rosRows || []).map(function (r) { return _pad(r || [], 30); });
-    const header = ros[0] || [];
+    const layout = resolveRoster(rosRows || []);
+    const cols = layout.cols;
+    const rosWidth = Math.max(sheetWidth(rosRows, 30), cols.name + 1, cols.grade1 + 1, cols.grade2 + 1, cols.status + 1, cols.tuition + 1);
+    const ros = (rosRows || []).map(function (r) { return _pad(r || [], rosWidth); });
+    const header = ros[layout.headerIndex] || [];
     const schoolIdx = findHeaderCol(header, ['학교', '학교명']);
     const addrIdx = findHeaderCol(header, ['주소', '거주지']);
 
@@ -246,16 +440,16 @@
     const GORDER = { '초등': 0, '중등': 1, '고등': 2, '성인': 3 };
     const BORDER = { '재학': 0, '휴원': 1, '퇴소': 2, '기타': 3 };
     const students = [];
-    ros.slice(1).forEach(function (r) {
-      const name = _s(r[1]);
-      if (!name || ['이름', '합계', '대기 명단', '퇴소 명단'].indexOf(name) >= 0 || _s(r[7]) === '상태') return;
-      if (!(_s(r[0]) !== '' || _s(r[4]) || _s(r[7]))) return;
-      const status = _s(r[7]) || '미정';
-      const g1 = _s(r[4]);
-      const g2v = _s(r[5]) !== '' ? _num(r[5]) : null;
+    ros.slice(layout.headerIndex + 1).forEach(function (r) {
+      const name = _s(r[cols.name]);
+      if (isRosterSkipName(name) || headerKey(r[cols.status]) === '상태') return;
+      if (!(_s(r[0]) !== '' || _s(r[cols.grade1]) || _s(r[cols.status]))) return;
+      const status = _s(r[cols.status]) || '미정';
+      const g1 = _s(r[cols.grade1]);
+      const g2v = _s(r[cols.grade2]) !== '' ? _num(r[cols.grade2]) : null;
       const grade = (g1 + (g2v != null ? ' ' + g2v : '')).trim();
       const bucket = ['재학', '휴원', '퇴소'].indexOf(status) >= 0 ? status : '기타';
-      const st = { name: name, grade1: g1, grade2: g2v, grade: grade, status: status, tuition: _num(r[8]), bucket: bucket };
+      const st = { name: name, grade1: g1, grade2: g2v, grade: grade, status: status, tuition: _num(r[cols.tuition]), bucket: bucket };
       if (schoolIdx >= 0 && _s(r[schoolIdx])) st.school = _s(r[schoolIdx]);
       if (addrIdx >= 0 && _s(r[addrIdx])) st.address = _s(r[addrIdx]);
       students.push(st);
@@ -838,6 +1032,11 @@
     parseCsv: parseCsv,
     parseRestRows: parseRestRows,
     buildLedger: buildLedger,
+    missingHeaderError: missingHeaderError,
+    tryCsvThenGviz: tryCsvThenGviz,
+    loadRowsRetry: loadRowsRetry,
+    syncFailureView: syncFailureView,
+    hhmmFromCache: hhmmFromCache,
     seoulYmd: seoulYmd,
     currentYmSeoul: currentYmSeoul,
     prevYmSeoul: prevYmSeoul,

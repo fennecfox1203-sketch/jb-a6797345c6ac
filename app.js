@@ -76,6 +76,20 @@
 
   function setSyncStatus(msg) { const s = $('syncStatus'); if (s) s.textContent = msg || ''; }
 
+  function showBanner(text, kind) {
+    const box = $('staleBanner');
+    if (!box) return;
+    if (!text) {
+      box.hidden = true;
+      box.textContent = '';
+      box.className = 'stale-banner';
+      return;
+    }
+    box.hidden = false;
+    box.className = 'stale-banner' + (kind && kind !== 'warn' ? ' ' + kind : '');
+    box.textContent = text;
+  }
+
   function setUploadStatus(msg, kind) {
     window.__bankUploadStatus = msg ? { msg: msg, kind: kind || '' } : null;
     const box = $('uploadStatus');
@@ -1202,40 +1216,86 @@ function minusWon(n) {
       return out;
     });
   }
+  const FETCH_TRIES = 3;
+  const FETCH_TIMEOUT_MS = 8000;
+  const FETCH_BACKOFF_MS = [400, 900];
   let _gvizSeq = 0;
-  async function fetchSheetRows(name) {
+  async function fetchCsvOnce(name) {
     const gid = SHEET_GIDS[name];
-    if (gid != null && SHEET_ID) {
-      try {
-        const r = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=' + gid + '&t=' + Date.now(), { cache: 'no-store' });
-        if (r.ok) {
-          const t = await r.text();
-          if (t && !/^\s*<(!doctype|html)/i.test(t)) return J.parseCsv(t);
-        }
-      } catch (e) {}
+    if (gid == null || !SHEET_ID) throw new Error(name + ' 불러오기 실패');
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const tm = setTimeout(function () { if (ctrl) ctrl.abort(); }, FETCH_TIMEOUT_MS);
+    try {
+      const r = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=' + gid + '&t=' + Date.now(), {
+        cache: 'no-store',
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      if (!r.ok) throw new Error(name + ' 불러오기 실패');
+      const t = await r.text();
+      if (!t || /^\s*<(!doctype|html)/i.test(t)) throw new Error(name + ' 불러오기 실패');
+      return J.parseCsv(t);
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error(name + ' 응답 없음');
+      throw e;
+    } finally {
+      clearTimeout(tm);
     }
-    return fetchSheetRowsGviz(name);
   }
   function fetchSheetRowsGviz(name) {
     return new Promise(function (resolve, reject) {
       const cb = '__jangbuCb' + (++_gvizSeq) + '_' + Date.now();
       const sc = document.createElement('script');
-      const done = function () { try { delete window[cb]; } catch (e) { window[cb] = undefined; } sc.remove(); clearTimeout(tm); };
-      const tm = setTimeout(function () { done(); reject(new Error(name + ' 응답 없음')); }, 20000);
-      window[cb] = function (resp) {
-        done();
-        if (!resp || resp.status === 'error' || !resp.table) reject(new Error(name + ' 읽기 실패 (시트 공개 설정을 확인해 주세요)'));
-        else resolve(_gvizRows(resp));
+      let settled = false;
+      const finish = function (fn) {
+        if (settled) return;
+        settled = true;
+        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+        sc.remove();
+        clearTimeout(tm);
+        fn();
       };
-      sc.onerror = function () { done(); reject(new Error(name + ' 불러오기 실패')); };
+      const tm = setTimeout(function () { finish(function () { reject(new Error(name + ' 응답 없음')); }); }, FETCH_TIMEOUT_MS);
+      window[cb] = function (resp) {
+        finish(function () {
+          if (!resp || resp.status === 'error' || !resp.table) reject(new Error(name + ' 읽기 실패 (시트 공개 설정을 확인해 주세요)'));
+          else resolve(_gvizRows(resp));
+        });
+      };
+      sc.onerror = function () { finish(function () { reject(new Error(name + ' 불러오기 실패')); }); };
       sc.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json;responseHandler:' + cb + '&headers=0&sheet=' + encodeURIComponent(name) + '&t=' + Date.now();
       document.head.appendChild(sc);
     });
   }
+  function fetchSheetRows(name) {
+    return J.loadRowsRetry(function () {
+      return J.tryCsvThenGviz(function () { return fetchCsvOnce(name); }, function () { return fetchSheetRowsGviz(name); });
+    }, { tries: FETCH_TRIES, backoffs: FETCH_BACKOFF_MS });
+  }
 
-  async function syncFromSheet(silent) {
+  function cachedLedger() {
+    return (DATA && DATA.monthDetails && Object.keys(DATA.monthDetails).length) ? DATA : null;
+  }
+
+  function showSyncFailure(err) {
+    const view = J.syncFailureView(err, cachedLedger());
+    if (view.kind === 'stale') {
+      setSyncStatus('이전 자료 ' + (J.hhmmFromCache(DATA) || ''));
+      showBanner(view.banner, 'warn');
+      return;
+    }
+    if (view.kind === 'schema') {
+      setSyncStatus('머리글 확인');
+      showBanner(view.banner, 'err');
+      return;
+    }
+    setSyncStatus('시트를 불러오지 못했어요');
+    showBanner(view.banner || '시트를 불러오지 못했어요', 'err');
+  }
+
+  async function syncFromSheet(_silent) {
     const btn = $('syncBtn');
     if (btn) { btn.disabled = true; btn.textContent = '동기화 중'; }
+    showBanner('');
     setSyncStatus('구글 시트에서 불러오는 중');
     try {
       if (!SHEET_ID) throw new Error('장부 주소가 올바르지 않아요. 받은 주소 전체(# 뒤까지)로 다시 열어 주세요.');
@@ -1247,12 +1307,16 @@ function minusWon(n) {
       const nd = J.buildLedger(pack[0], pack[1]);
       nd.restMonths = J.parseRestRows(pack[2]);
       nd.syncedAt = _stamp();
+      const now = new Date();
+      const p2 = function (n) { return String(n).padStart(2, '0'); };
+      nd.cachedAt = now.toISOString();
+      nd.cachedHHmm = p2(now.getHours()) + ':' + p2(now.getMinutes());
       applyNewData(nd);
       try { localStorage.setItem('jangbuCache', JSON.stringify(nd)); } catch (e) {}
+      showBanner('');
       setSyncStatus('시트 최신 ' + nd.syncedAt);
     } catch (e) {
-      setSyncStatus(DATA.updated ? '오프라인 · 마지막 저장 ' + (DATA.syncedAt || DATA.updated) : '시트를 불러오지 못했어요');
-      if (!silent) alert('동기화 실패\n' + (e && e.message ? e.message : e) + '\n\n인터넷 연결을 확인해 주세요.');
+      showSyncFailure(e);
     } finally {
       booting = false;
       if (btn) { btn.disabled = false; btn.textContent = '새로고침'; }
