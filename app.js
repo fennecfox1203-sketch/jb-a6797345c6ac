@@ -37,6 +37,7 @@
 
   let demoSaved = {};
   let booting = !DEMO && !(DATA.monthDetails && Object.keys(DATA.monthDetails).length);
+  let loadNote = null;
   let state = {
     tab: 'sales', month: null, view: 'list', salesView: 'list', sujiView: 'list',
     feeMonth: null, bankMonth: null, dirFilt: 'all', feeFilt: 'unpaid',
@@ -229,8 +230,17 @@
   }
 
   function applyTabUI() {
-    document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === state.tab); });
-    document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('on', p.id === 'panel-' + state.tab); });
+    document.querySelectorAll('.tab').forEach(function (b) {
+      const on = b.dataset.tab === state.tab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+    });
+    document.querySelectorAll('.panel').forEach(function (p) {
+      const on = p.id === 'panel-' + state.tab;
+      p.classList.toggle('on', on);
+      p.setAttribute('aria-hidden', on ? 'false' : 'true');
+    });
   }
   function setTab(name) {
     state.tab = name;
@@ -390,6 +400,33 @@
     return '<div class="bar"><i class="i" style="width:' + (inc / s * 100) + '%"></i><i class="e" style="width:' + (exp / s * 100) + '%"></i></div>';
   }
   function emptyBox(msg) { return '<div class="empty">' + esc(msg) + '</div>'; }
+  function noLedger() {
+    let detail = '시트에서 불러온 거래가 없습니다. 통장거래내역에 날짜, 구분, 금액이 있는 행이 있는지 확인해 주세요.';
+    if (DEMO) detail = '데모 장부가 비어 있습니다.';
+    else if (!SHEET_ID) detail = '장부 주소가 없습니다. 받은 링크를 # 뒤까지 포함해 다시 열어 주세요. 이 화면에는 시트 번호를 입력하지 않습니다.';
+    else if (loadNote && loadNote.kind === 'schema') detail = (loadNote.banner || '머리글을 찾지 못했습니다.') + ' 고친 뒤 새로고침 해 주세요.';
+    else if (loadNote) detail = '시트를 불러오지 못했고, 이 기기에 저장된 장부도 없습니다. 연결을 확인한 뒤 새로고침 해 주세요.';
+    return '<div class="empty empty-state"><p class="empty-title">보여줄 장부가 없습니다</p><p>' + esc(detail) + '</p></div>';
+  }
+  function wonDelta(now, prev, prefix) {
+    if (now == null || prev == null) return '';
+    const word = prefix || '전월';
+    const d = Math.round(Number(now) - Number(prev));
+    if (!d) return word + '과 같음';
+    return word + '보다 ' + J.won(Math.abs(d)) + (d > 0 ? ' 많음' : ' 적음');
+  }
+  function bindPress(id, fn) {
+    const el = $(id);
+    if (!el) return;
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    const hint = el.querySelector('.chart-hint');
+    if (hint && !el.getAttribute('aria-label')) el.setAttribute('aria-label', hint.textContent);
+    el.onclick = fn;
+    el.onkeydown = function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); }
+    };
+  }
 function plusWon(n) {
   const v = Math.round(Number(n) || 0);
   return (v > 0 ? '+' : '') + J.won(v);
@@ -418,7 +455,7 @@ function minusWon(n) {
       const amt = h.status === '납부' ? J.won(h.amt) : (h.expected ? J.won(h.expected) : '');
       return '<div class="line"><div><div>' + esc(J.longYmLabel(h.ym)) + '</div><div class="m">' + esc(h.day ? h.day.slice(5) : h.status) + '</div></div><div class="a" style="color:' + col + '">' + esc(h.status) + (amt ? ' · ' + amt : '') + '</div></div>';
     }).join('') : emptyBox('납부 기록이 없습니다');
-    return '<div class="modal-bg" id="peekBg"><div class="modal"><h3>' + esc(name) + '</h3><p>' + esc(s ? ((eg && eg.label) || s.grade || '') + ' · ' + (s.status || '') + (s.school ? ' · ' + s.school : '') : '명단 밖 · 납부 기록만 있습니다') + '</p><div class="history">' + rows + '</div><div class="acts" style="margin-top:12px"><button type="button" class="cancel" id="peekClose">닫기</button></div></div></div>';
+    return '<div class="modal-bg" id="peekBg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="peekTitle"><h3 id="peekTitle">' + esc(name) + '</h3><p>' + esc(s ? ((eg && eg.label) || s.grade || '') + ' · ' + (s.status || '') + (s.school ? ' · ' + s.school : '') : '명단 밖 · 납부 기록만 있습니다') + '</p><div class="history">' + rows + '</div><div class="acts" style="margin-top:12px"><button type="button" class="cancel" id="peekClose">닫기</button></div></div></div>';
   }
   function bindPeek() {
     const bg = $('peekBg');
@@ -433,7 +470,7 @@ function minusWon(n) {
     const L = DATA.issues || [];
     if (!L.length) { box.innerHTML = ''; return; }
     const open = !!window.__issuesOpen;
-    box.innerHTML = '<div class="issues"><div class="head" id="issuesToggle"><span>시트에서 채워야 할 교습비 행 ' + L.length + '건</span><span>' + (open ? '접기' : '보기') + '</span></div>'
+    box.innerHTML = '<div class="issues"><button type="button" class="head" id="issuesToggle" aria-expanded="' + (open ? 'true' : 'false') + '"><span>시트에서 채워야 할 교습비 행 ' + L.length + '건</span><span>' + (open ? '접기' : '보기') + '</span></button>'
       + (open ? L.map(function (x) {
         return '<div class="issue-row"><span>' + esc((x.day || '').slice(5)) + ' · ' + esc(x.memo || '') + '<br><span class="hint">빈칸: ' + esc((x.miss || []).join('·')) + '</span></span><span>' + (x.amt != null ? J.won(x.amt) : '금액 오류') + '</span></div>';
       }).join('') : '') + '</div>';
@@ -448,7 +485,15 @@ function minusWon(n) {
     const head = $('totalsHead');
     if (head) head.textContent = hasData() ? J.longYmLabel(ym) : '';
     const note = $('totalsNote');
-    if (note) note.textContent = hasData() ? '통장 수입·지출 · 교습비는 납부대상월' : '';
+    if (note) {
+      if (!hasData()) note.textContent = '';
+      else {
+        const cmp = J.periodCompare(DATA);
+        const net = cmp.current ? J.won(cmp.current.net) : '—';
+        const d = cmp.current && cmp.mom ? wonDelta(cmp.current.net, cmp.mom.net) : '';
+        note.textContent = '순이익 ' + net + (d ? ' · ' + d : '') + ' · 교습비는 납부대상월';
+      }
+    }
     $('totals').innerHTML = hasData() ? (
       '<button type="button" class="tot inc" data-nav="inc"><div class="l">수입</div><div class="v" data-value="' + (m.income || 0) + '">' + J.won(m.income || 0) + '</div></button>'
       + '<button type="button" class="tot exp" data-nav="exp"><div class="l">지출</div><div class="v" data-value="' + (m.expense || 0) + '">' + J.won(m.expense || 0) + '</div></button>'
@@ -515,7 +560,7 @@ function minusWon(n) {
     const pct = Math.min(100, Math.round((curSales || 0) / J.SALES_GOAL_1 * 100));
     const gap = J.SALES_GOAL_1 - curSales;
 
-    if (!hasData()) { p.innerHTML = emptyBox('보여줄 장부가 아직 없습니다.'); return; }
+    if (!hasData()) { p.innerHTML = noLedger(); return; }
 
     if (state.salesView === 'ddayCal') {
       const today = J.seoulYmd();
@@ -672,7 +717,7 @@ function minusWon(n) {
         { color: 'var(--fee)', label: '이번 달' }, { color: 'var(--exp)', label: '미납 있는 달' }
       ] })
       + '<div class="card"><h2>월별 · 1차 목표 대비</h2><div class="month-row head"><span>월</span><span>교습비</span><span>1차와 차이</span></div>' + (rows || emptyBox('데이터 없음')) + '</div>';
-    $('salesChart').onclick = function (e) { if (e.target.closest('.month-row')) return; goSalesChartDetail(); };
+    bindPress('salesChart', function (e) { if (e.target.closest && e.target.closest('.month-row')) return; goSalesChartDetail(); });
     $('curFeeCard').onclick = function () { state.salesView = 'feeDonut'; state.feeMonth = cur; render(); };
     $('ddayCard').onclick = function () { state.salesView = 'ddayCal'; render(); };
     p.querySelectorAll('.month-row[data-fee-ym]').forEach(function (r) {
@@ -691,15 +736,52 @@ function minusWon(n) {
     }).join('');
   }
 
+  function periodCard(cmp) {
+    if (!cmp || !cmp.current) return '<div class="card"><h2>기간 비교</h2>' + emptyBox('지난달 거래가 없습니다') + '</div>';
+    const c = cmp.current;
+    const m = cmp.mom;
+    function row(label, val, prev, cls) {
+      const d = m ? '<span class="delta">' + esc(wonDelta(val, prev)) + '</span>' : '';
+      return '<div class="metric"><span class="n">' + label + '</span><span class="a ' + cls + '">' + J.won(val) + d + '</span></div>';
+    }
+    const yoy = cmp.yoy
+      ? '<div class="metric"><span class="n">작년 ' + esc(J.shortYm(cmp.yoy.ym)) + ' 순이익</span><span class="a">' + J.won(cmp.yoy.net) + '<span class="delta">' + esc(wonDelta(c.net, cmp.yoy.net, '작년 같은 달')) + '</span></span></div>'
+      : '<div class="hint">작년 같은 달은 자료가 없어 비교하지 않습니다.</div>';
+    return '<div class="card"><h2>' + esc(J.longYmLabel(c.ym)) + ' 기간 비교</h2><div class="hint">순이익은 통장 수입에서 지출을 뺀 값입니다.</div>'
+      + row('수입', c.income, m && m.income, 'inc')
+      + row('지출', c.expense, m && m.expense, 'exp')
+      + row('순이익', c.net, m && m.net, '')
+      + yoy
+      + '<button type="button" class="back block" id="toSujiNet">월별 순이익 그래프</button></div>';
+  }
+  function yearCard(years) {
+    if (!years || !years.length) return '';
+    const chart = C.yearBars(years);
+    if (!chart) return '';
+    const rows = years.map(function (y) {
+      return '<div class="metric"><span class="n">' + esc(y.year) + '년 · ' + y.months + '개월</span><span class="a">월평균 순 ' + J.won(y.avgNet) + '</span></div>'
+        + '<div class="metric"><span class="n">수입</span><span class="a inc">' + J.won(y.income) + '</span></div>'
+        + '<div class="metric"><span class="n">지출</span><span class="a exp">' + J.won(y.expense) + '</span></div>'
+        + '<div class="metric"><span class="n">순이익</span><span class="a">' + J.won(y.net) + '</span></div>';
+    }).join('');
+    return '<div class="card"><h2>연도별 수입·지출·순이익</h2><div class="hint">자료가 있는 달만 더합니다. 개월 수가 다르면 월평균으로 나란히 봅니다. 막대 위 숫자는 순이익, 단위는 만 원입니다.</div><div class="nx-chart">' + chart.svg + '</div>'
+      + legend([
+        { color: 'var(--inc)', label: '수입' },
+        { color: 'var(--exp)', label: '지출' },
+        { color: 'var(--net)', label: '순이익' }
+      ])
+      + rows + '</div>';
+  }
+
   function renderMonths() {
     const p = $('panel-months');
-    if (!hasData()) { p.innerHTML = emptyBox('보여줄 장부가 아직 없습니다.'); return; }
+    if (!hasData()) { p.innerHTML = noLedger(); return; }
     const all = (DATA.months || []).map(function (m) { return { ym: m.ym, income: m.income, expense: m.expense }; });
 
     if (state.view === 'chartDetail') {
       const chart = C.monthsLine(all, { summary: false });
       p.innerHTML = backBtn('backMChart', '← 월 목록')
-        + '<div class="card"><h2>수입·지출 그래프</h2><div class="hint">전체 월 · 좌우 스크롤 · 달을 누르면 상세 · 숫자 단위 만 원</div></div>'
+        + '<div class="card"><h2>수입·지출 그래프</h2><div class="hint">전체 월 · 좌우 스크롤 · 달을 누르면 상세 · 숫자 단위 만 원. 월별 순이익은 현금흐름 탭입니다.</div></div>'
         + chartCard({ id: 'monthsDetailChart', scrollId: 'monthsDetailScroll', summary: false, hint: '좌우 스크롤', svg: chart.svg, legend: [
           { color: 'var(--inc)', label: '수입' }, { color: 'var(--exp)', label: '지출' }
         ] });
@@ -730,11 +812,11 @@ function minusWon(n) {
       const parts = J.monthParts(DATA, state.month);
       const filt = function (key, label) { return '<button type="button" data-f="' + key + '" class="' + (state.dirFilt === key ? 'on' : '') + '">' + label + '</button>'; };
       p.innerHTML = backBtn('backM', '← 월 목록')
-        + '<div class="card"><h2>' + esc(J.longYmLabel(m.ym)) + '</h2><div class="metric"><span class="n">수입</span><span class="a inc">' + J.won(m.income) + '</span></div><div class="metric"><span class="n">지출</span><span class="a ' + ((m.expense || 0) < 0 ? 'inc' : 'exp') + '">' + J.won(m.expense) + '</span></div><div class="metric"><span class="n">교습비 · 통장</span><span class="a fee">' + J.won(m.fee) + '</span></div><div class="hint">교습비는 중분류 또는 세부분류가 교습비인 수입입니다.</div></div>'
+        + '<div class="card"><h2>' + esc(J.longYmLabel(m.ym)) + '</h2><div class="metric"><span class="n">수입</span><span class="a inc">' + J.won(m.income) + '</span></div><div class="metric"><span class="n">지출</span><span class="a ' + ((m.expense || 0) < 0 ? 'inc' : 'exp') + '">' + J.won(m.expense) + '</span></div><div class="metric"><span class="n">순이익</span><span class="a">' + J.won((Number(m.income) || 0) - (Number(m.expense) || 0)) + '</span></div><div class="metric"><span class="n">교습비 · 통장</span><span class="a fee">' + J.won(m.fee) + '</span></div><div class="hint">교습비는 중분류 또는 세부분류가 교습비인 수입입니다. 순이익은 수입에서 지출을 뺀 값입니다.</div></div>'
         + donutBlock('지출 비중', parts.exp.kids || [], 1)
         + donutBlock('수입 비중', parts.inc.kids || [], 0)
         + '<div class="filt">' + filt('all', '전체') + filt('inc', '수입') + filt('exp', '지출') + filt('fee', '교습비') + '</div>'
-        + '<input class="search" id="q" placeholder="학생·메모 검색" value="' + esc(state.q) + '"/>'
+        + '<input class="search" id="q" placeholder="학생·메모 검색" aria-label="학생·메모 검색" value="' + esc(state.q) + '"/>'
         + '<div class="card"><button type="button" class="detail-toggle" id="monthDetailToggle">상세보기</button><div class="detail-panel" id="monthDetailPanel" hidden>' + lineItems(lines) + '</div></div>';
       $('backM').onclick = function () {
         if (state._monthsFromChart) { state._monthsFromChart = false; state.view = 'chartDetail'; state.month = null; state.q = ''; }
@@ -749,10 +831,13 @@ function minusWon(n) {
     const homePts = sliceYm(all);
     const chart = C.monthsLine(homePts, { summary: true });
     const stack = C.expenseStack(J.expenseStack(DATA));
+    const cmp = J.periodCompare(DATA);
     const months = (DATA.months || []).slice().reverse();
     p.innerHTML = chartCard({ id: 'monthsChart', scrollId: 'monthsHomeScroll', summary: true, hint: '최근 9개월 · 누르면 전체 · 만 원', svg: chart.svg, legend: [
       { color: 'var(--inc)', label: '수입' }, { color: 'var(--exp)', label: '지출' }
     ] })
+      + periodCard(cmp)
+      + yearCard(cmp.years)
       + expenseCard(stack)
       + '<div class="card"><div class="hint">월을 누르면 상세. 그래프를 누르면 전체 기간.</div></div>'
       + months.map(function (m) {
@@ -760,9 +845,12 @@ function minusWon(n) {
         const expHtml = exp < 0
           ? '<div style="color:var(--inc)">순유입 ' + J.won(-exp) + '</div>'
           : '<div style="color:var(--exp)">' + minusWon(exp) + '</div>';
-        return '<button type="button" class="row" data-ym="' + m.ym + '"><div><div class="ym">' + esc(J.shortYm(m.ym)) + '</div>' + monthBar(m) + '</div><div class="right"><div style="color:var(--inc)">' + plusWon(m.income) + '</div>' + expHtml + '</div></button>';
+        const net = Math.round((Number(m.income) || 0) - (Number(m.expense) || 0));
+        return '<button type="button" class="row" data-ym="' + m.ym + '"><div><div class="ym">' + esc(J.shortYm(m.ym)) + '</div>' + monthBar(m) + '</div><div class="right"><div style="color:var(--inc)">' + plusWon(m.income) + '</div>' + expHtml + '<div class="netline">순 ' + plusWon(net) + '</div></div></button>';
       }).join('');
-    $('monthsChart').onclick = function () { goMonthsChartDetail(); };
+    bindPress('monthsChart', function () { goMonthsChartDetail(); });
+    const toNet = $('toSujiNet');
+    if (toNet) toNet.onclick = function () { setTab('suji'); };
     p.querySelectorAll('.nx-exp-hit').forEach(function (h) {
       h.addEventListener('click', function (e) { e.stopPropagation(); goMonthDetail(h.getAttribute('data-ym'), 'exp', false); });
     });
@@ -793,12 +881,12 @@ function minusWon(n) {
 
   function renderSuji() {
     const p = $('panel-suji');
-    if (!hasData()) { p.innerHTML = emptyBox('보여줄 장부가 아직 없습니다.'); return; }
+    if (!hasData()) { p.innerHTML = noLedger(); return; }
     const cash = J.cashSeries(DATA);
     if (state.sujiView === 'chartDetail') {
       const chart = C.cashBars(cash, { summary: false, selectedYm: state.month });
       p.innerHTML = backBtn('backSujiChart', '← 현금흐름')
-        + '<div class="card"><h2>현금흐름 그래프</h2><div class="hint">수입−지출 · 전체 월 · 좌우 스크롤 · 만 원</div></div>'
+        + '<div class="card"><h2>월별 순이익</h2><div class="hint">순이익은 수입−지출 · 전체 월 · 좌우 스크롤 · 만 원</div></div>'
         + chartCard({ id: 'sujiDetailChart', scrollId: 'sujiDetailScroll', summary: false, hint: '좌우 스크롤', svg: chart.svg, legend: [
           { color: 'var(--inc)', label: '플러스' }, { color: 'var(--exp)', label: '마이너스' }
         ] });
@@ -825,7 +913,7 @@ function minusWon(n) {
     const chart = C.cashBars(home, { summary: true, selectedYm: state.month });
     const cumAll = J.cumSeries(DATA);
     const cum = C.cumChart(cumAll, J.currentYmSeoul());
-    p.innerHTML = chartCard({ id: 'sujiChart', scrollId: 'sujiHomeScroll', summary: true, hint: '최근 9개월 · 누르면 전체 · 만 원', svg: chart.svg, legend: [
+    p.innerHTML = chartCard({ id: 'sujiChart', scrollId: 'sujiHomeScroll', summary: true, hint: '순이익(수입−지출) · 최근 9개월 · 누르면 전체 · 만 원', svg: chart.svg, legend: [
       { color: 'var(--inc)', label: '플러스' }, { color: 'var(--exp)', label: '마이너스' }
     ] })
       + cumCard(cum, cumAll)
@@ -840,7 +928,7 @@ function minusWon(n) {
           }).join('') + '</div></div>';
       }).join('') || emptyBox('데이터 없음'))
       + '<div class="tree-item"><div class="head"><span>현금흐름</span><span class="amt" style="color:' + (flow > 0 ? 'var(--inc)' : flow < 0 ? 'var(--exp)' : 'var(--muted)') + '">' + J.won(flow) + '</span></div></div></div>';
-    $('sujiChart').onclick = function (e) { if (e.target.closest('.suji-hit')) return; goSujiChartDetail(); };
+    bindPress('sujiChart', function (e) { if (e.target.closest && e.target.closest('.suji-hit')) return; goSujiChartDetail(); });
     p.querySelectorAll('#sujiChart .suji-hit').forEach(function (h) {
       h.addEventListener('click', function (e) { e.stopPropagation(); goSujiChartDetail(); });
     });
@@ -877,7 +965,7 @@ function minusWon(n) {
 
   function renderFee() {
     const p = $('panel-fee');
-    if (!hasData()) { p.innerHTML = emptyBox('보여줄 장부가 아직 없습니다.'); return; }
+    if (!hasData()) { p.innerHTML = noLedger(); return; }
     const months = (DATA.billMonths || []).slice().reverse();
     const ALL = '__all_unpaid__';
     if (!state.feeMonth) state.feeMonth = ALL;
@@ -886,7 +974,7 @@ function minusWon(n) {
     let modal = '';
     if (state.confirm) {
       const c = state.confirm;
-      modal = '<div class="modal-bg" id="modalBg"><div class="modal"><h3>미납에서 제외할까요?</h3><p><b style="color:var(--text)">' + esc(c.name) + '</b> · 납부대상 ' + esc(J.shortYm(c.ym)) + '<br>제외하면 이 달 미납에서 빠집니다. 이 기기에만 저장됩니다.<br>휴원이면 시트 «휴원 기록»에 이름과 월을 적으면 모든 기기에서 빠집니다.</p><div class="acts"><button type="button" class="cancel" id="cfmNo">아니요</button><button type="button" class="ok" id="cfmYes">제외할래요</button></div></div></div>';
+      modal = '<div class="modal-bg" id="modalBg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h3 id="modalTitle">미납에서 제외할까요?</h3><p><b style="color:var(--text)">' + esc(c.name) + '</b> · 납부대상 ' + esc(J.shortYm(c.ym)) + '<br>제외하면 이 달 미납에서 빠집니다. 이 기기에만 저장됩니다.<br>휴원이면 시트 «휴원 기록»에 이름과 월을 적으면 모든 기기에서 빠집니다.</p><div class="acts"><button type="button" class="cancel" id="cfmNo">아니요</button><button type="button" class="ok" id="cfmYes">제외할래요</button></div></div></div>';
     }
     const groups = [];
     (DATA.billMonths || []).forEach(function (ym) {
@@ -912,7 +1000,7 @@ function minusWon(n) {
         return '<div class="card"><h2>' + esc(J.shortYm(g.ym)) + ' 미납 · ' + g.list.length + '명 · ' + J.won(g.total) + '</h2>' + g.list.map(function (s) { return unpaidRow(s, g.ym); }).join('') + '</div>';
       }).join('') : '<div class="card">' + emptyBox('미납 없음') + '</div>';
       p.innerHTML = seg + '<div class="card"><h2>전체 미납</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + allCount + '명 · ' + J.won(allTotal) + '</span></div><div class="metric"><span class="n">기간</span><span class="a">' + (groups.length ? esc(J.shortYm(groups[0].ym)) + ' ~ ' + esc(J.shortYm(groups[groups.length - 1].ym)) : '—') + '</span></div></div>'
-        + collectionCard(col) + '<input class="search" id="qFee" placeholder="학생·학년 검색" value="' + esc(state.q || '') + '"/>' + body + modal + peekHtml();
+        + collectionCard(col) + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>' + body + modal + peekHtml();
     } else {
       const block = (DATA.tuition || {})[state.feeMonth] || { paidTotal: 0, paidCount: 0, paid: [], unpaid: [] };
       const exList = Object.keys(ex).map(function (k) { return ex[k]; }).filter(function (x) { return x.ym === state.feeMonth && !x.session; });
@@ -932,7 +1020,7 @@ function minusWon(n) {
           const btn = (!x.sheet && !x.session) ? '<button type="button" class="xbtn" data-restore="' + esc(x.name) + '">되돌리기</button>' : '';
           return '<div class="line"><div><div>' + esc(x.name) + '</div><div class="m">' + note + '</div></div>' + btn + '</div>';
         }).join('') + '</div>' : '')
-        + '<input class="search" id="qFee" placeholder="학생·학년 검색" value="' + esc(state.q || '') + '"/>'
+        + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>'
         + '<div class="card">' + (list.length ? list.map(function (s) {
           if (state.feeFilt === 'unpaid') return unpaidRow(s, state.feeMonth);
           return '<div class="line"><div><div>' + esc(s.name) + '</div><div class="m">' + esc(s.grade || '') + (s.day ? ' · ' + esc(s.day.slice(5)) : '') + (s.expected ? ' · 명단 ' + J.won(s.expected) : '') + '</div></div><div class="a" style="color:var(--fee)">' + J.won(s.amt) + '</div></div>';
@@ -976,7 +1064,24 @@ function minusWon(n) {
       const d = Math.round((last.rate - prev.rate) * 10) / 10;
       delta = d ? '<span class="delta">전월 ' + (d > 0 ? '▲ ' : '▼ ') + Math.abs(d) + '%p</span>' : '<span class="delta">전월과 같음</span>';
     }
-    return '<div class="card nx-card"><h2>교습비 수납률</h2><div class="hint">납부 ÷ (납부+미납 예정액). 막대를 누르면 그 달. 이번 달은 흐리게.</div><div class="nx-chart">' + chart.svg + '</div>'
+    const ch = J.feeChange(DATA, currentExcluded());
+    let sentence = '';
+    if (ch && ch.last && ch.last.open) {
+      const last = ch.last;
+      const prior = ch.prev;
+      let text = J.longYmLabel(last.ym) + ' 수납률 ' + last.rate + '%';
+      if (prior && prior.open) {
+        const d = Math.round((last.rate - prior.rate) * 10) / 10;
+        text += d === 0 ? ' · 전월과 같음' : (' · 전월보다 ' + Math.abs(d) + '%p ' + (d > 0 ? '높음' : '낮음'));
+      }
+      text += '. 미납 ' + last.unpaidCount + '명 · ' + J.won(last.unpaid);
+      if (prior && prior.open) {
+        const c = last.unpaidCount - prior.unpaidCount;
+        text += c === 0 ? ' · 인원 전월과 같음' : (' · 인원 전월보다 ' + Math.abs(c) + '명 ' + (c > 0 ? '많음' : '적음'));
+      }
+      sentence = '<p class="summary-line">' + esc(text) + '</p>';
+    }
+    return '<div class="card nx-card"><h2>교습비 입금</h2>' + sentence + '<div class="hint">납부 ÷ (납부+미납 예정액). 막대를 누르면 그 달. 이번 달은 흐리게.</div><div class="nx-chart">' + chart.svg + '</div>'
       + legend([{ color: 'var(--fee)', label: '납부' }, { color: 'var(--warn)', label: '미납 예정' }])
       + (last ? '<div class="metric"><span class="n">' + esc(J.shortYm(last.ym)) + ' 수납률</span><span class="a">' + last.rate + '%' + delta + '</span></div><div class="metric"><span class="n">' + esc(J.shortYm(last.ym)) + ' 미납</span><span class="a warn">' + last.unpaidCount + '명 · ' + J.won(last.unpaid) + '</span></div>' : '')
       + (cur ? '<div class="metric"><span class="n">' + esc(J.shortYm(cur.ym)) + ' 진행 중</span><span class="a fee">' + cur.paidCount + '명 납부 · ' + cur.rate + '%</span></div>' : '')
@@ -985,7 +1090,7 @@ function minusWon(n) {
 
   function renderStudents() {
     const p = $('panel-students');
-    if (!hasData()) { p.innerHTML = emptyBox('보여줄 장부가 아직 없습니다.'); return; }
+    if (!hasData()) { p.innerHTML = noLedger(); return; }
     if (state.stuFlowYm) { renderStudentFlow(); return; }
     const all = J.flowSeries(DATA);
     const summary = state.stuView !== 'chartDetail';
@@ -1003,7 +1108,7 @@ function minusWon(n) {
         + '<div class="metric"><span class="n">최근 재원</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
         + '<div class="metric"><span class="n">기간 신규</span><span class="a inc">' + totE + '명</span></div>'
         + '<div class="metric"><span class="n">기간 퇴소</span><span class="a exp">' + totL + '명</span></div></div>'
-        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '좌우 스크롤 · 누르면 명단', svg: chart.svg, legend: [
+        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '선은 재원 · 아래 숫자는 신규·퇴소 · 누르면 명단', svg: chart.svg, legend: [
           { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
         ] })
         + '<div class="card"><h2>월별</h2>' + (rows || emptyBox('데이터 없음')) + '</div>' + peekHtml();
@@ -1017,17 +1122,24 @@ function minusWon(n) {
       return;
     }
     const last = pts.length ? pts[pts.length - 1] : null;
-    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '최근 9개월 · 누르면 전체', svg: chart.svg, legend: [
+    const flowCh = J.flowChange(DATA);
+    let flowLine = '';
+    if (flowCh && flowCh.last) {
+      const d = flowCh.enrolledDelta;
+      const tail = d == null ? '' : (d === 0 ? ' · 전월과 같음' : (' · 전월보다 ' + Math.abs(d) + '명 ' + (d > 0 ? '많음' : '적음')));
+      flowLine = '<p class="summary-line">' + esc(J.longYmLabel(flowCh.last.ym) + ' 재원 ' + flowCh.last.enrolled + '명' + tail + '. 최근 3개월 신규 ' + flowCh.recentEntered + '명 · 퇴소 ' + flowCh.recentLeft + '명.') + '</p>';
+    }
+    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '선은 재원 인원 · 누르면 월별 신규·퇴소', svg: chart.svg, legend: [
       { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
     ] })
-      + '<div class="card"><div class="metric"><span class="n">' + (last ? esc(J.shortYm(last.ym)) + ' 재원' : '재원') + '</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
+      + '<div class="card">' + flowLine + '<div class="metric"><span class="n">' + (last ? esc(J.shortYm(last.ym)) + ' 재원' : '재원') + '</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
       + '<div class="metric"><span class="n">신규</span><span class="a inc">' + (last ? last.entered + '명' : '—') + '</span></div>'
       + '<div class="metric"><span class="n">퇴소</span><span class="a exp">' + (last ? last.left + '명' : '—') + '</span></div>'
       + '<div class="hint">납부한 달과, 공백이 3개월 미만인 달은 재원입니다. 휴원 기록 달은 재원에서 뺍니다. 첫 달은 이전 명단을 알 수 없어 신규로 세지 않습니다.</div></div>'
       + (last ? gradeCard(last.ym) : '')
       + gradeSalesCard(pts.map(function (x) { return x.ym; }))
       + arpuCard();
-    $('stuEnrollChart').onclick = function () { goStudentChartDetail(); };
+    bindPress('stuEnrollChart', function () { goStudentChartDetail(); });
   }
 
   function gradeCard(ym) {
@@ -1119,7 +1231,7 @@ function minusWon(n) {
     const p = $('panel-bank');
     const months = Object.keys(DATA.monthDetails || {}).sort().reverse();
     if (!months.length) {
-      p.innerHTML = uploadCard() + emptyBox('거래내역이 아직 없습니다');
+      p.innerHTML = uploadCard() + (hasData() ? emptyBox('이 기간에 거래가 없습니다') : noLedger());
       bindBankUpload();
       return;
     }
@@ -1144,7 +1256,7 @@ function minusWon(n) {
       + '<div class="seg" id="segBank">' + months.map(function (ym) { return '<button type="button" data-ym="' + ym + '" class="' + (ym === state.bankMonth ? 'on' : '') + '">' + esc(J.shortYm(ym)) + '</button>'; }).join('') + '</div>'
       + '<div class="card"><h2>' + esc(J.shortYm(state.bankMonth)) + ' 합계</h2><div class="metric"><span class="n">수입 · ' + sumLines.filter(function (x) { return x.dir === '수입'; }).length + '건</span><span class="a inc">' + J.won(sumInc) + '</span></div><div class="metric"><span class="n">지출 · ' + sumLines.filter(function (x) { return x.dir === '지출'; }).length + '건</span><span class="a exp">' + J.won(sumExp) + '</span></div><div class="metric"><span class="n">전체 · ' + sumLines.length + '건</span><span class="a">' + J.won(sumInc + sumExp) + '</span></div></div>'
       + '<div class="filt">' + filt('all', '전체') + filt('inc', '수입') + filt('exp', '지출') + '</div>'
-      + '<input class="search" id="bankQ" placeholder="학생·메모·분류 검색" value="' + esc(state.q) + '"/>'
+      + '<input class="search" id="bankQ" placeholder="학생·메모·분류 검색" aria-label="학생·메모·분류 검색" value="' + esc(state.q) + '"/>'
       + '<div class="card"><div class="hint">거래 ' + lines.length + '건</div>' + (lines.length ? lines.map(function (l) {
         const parts = [l.dir, l.cat2, l.cat3].filter(function (x, i, arr) { return x && x !== '-' && arr[i - 1] !== x; });
         const title = l.student || l.memo || parts[parts.length - 1] || l.dir || '거래';
@@ -1190,6 +1302,10 @@ function minusWon(n) {
     if (DEMO) window.__metrics = J.snapshot(DATA, loadSaved());
     window.__ready = true;
     restoreFocus();
+    if (state.confirm || state.peek) {
+      const btn = $('cfmNo') || $('peekClose');
+      if (btn) btn.focus();
+    }
   }
 
   function applyNewData(nd) {
@@ -1266,10 +1382,42 @@ function minusWon(n) {
       document.head.appendChild(sc);
     });
   }
+  async function fetchGvizFlexible(name) {
+    const names = J.sheetTitleVariants(name);
+    let last;
+    for (let i = 0; i < names.length; i++) {
+      try { return await fetchSheetRowsGviz(names[i]); }
+      catch (e) { last = e; }
+    }
+    throw last || new Error(name + ' 불러오기 실패');
+  }
+  async function discoverSheetTitles() {
+    if (!SHEET_ID) return [];
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const tm = setTimeout(function () { if (ctrl) ctrl.abort(); }, FETCH_TIMEOUT_MS);
+    try {
+      const r = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/edit?usp=sharing&rm=minimal', {
+        cache: 'no-store',
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      if (!r.ok) return [];
+      return J.parseSheetTitles(await r.text());
+    } catch (e) {
+      return [];
+    } finally {
+      clearTimeout(tm);
+    }
+  }
   function fetchSheetRows(name) {
     return J.loadRowsRetry(function () {
-      return J.tryCsvThenGviz(function () { return fetchCsvOnce(name); }, function () { return fetchSheetRowsGviz(name); });
-    }, { tries: FETCH_TRIES, backoffs: FETCH_BACKOFF_MS });
+      return J.tryCsvThenGviz(function () { return fetchCsvOnce(name); }, function () { return fetchGvizFlexible(name); });
+    }, { tries: FETCH_TRIES, backoffs: FETCH_BACKOFF_MS }).catch(function (err) {
+      return discoverSheetTitles().then(function (titles) {
+        const picked = J.pickSheetTitle(titles, name);
+        if (!picked || J.sheetTitleVariants(name).indexOf(picked) >= 0) throw err;
+        return fetchSheetRowsGviz(picked);
+      });
+    });
   }
 
   function cachedLedger() {
@@ -1278,6 +1426,7 @@ function minusWon(n) {
 
   function showSyncFailure(err) {
     const view = J.syncFailureView(err, cachedLedger());
+    loadNote = view;
     if (view.kind === 'stale') {
       setSyncStatus('이전 자료 ' + (J.hhmmFromCache(DATA) || ''));
       showBanner(view.banner, 'warn');
@@ -1313,6 +1462,7 @@ function minusWon(n) {
       nd.cachedHHmm = p2(now.getHours()) + ':' + p2(now.getMinutes());
       applyNewData(nd);
       try { localStorage.setItem('jangbuCache', JSON.stringify(nd)); } catch (e) {}
+      loadNote = null;
       showBanner('');
       setSyncStatus('시트 최신 ' + nd.syncedAt);
     } catch (e) {
@@ -1340,6 +1490,22 @@ function minusWon(n) {
   document.querySelectorAll('.tab').forEach(function (b) {
     b.addEventListener('click', function () { setTab(b.dataset.tab); });
   });
+  const tabList = document.querySelector('.tabs');
+  if (tabList) {
+    tabList.addEventListener('keydown', function (e) {
+      if (['ArrowRight', 'ArrowLeft', 'Home', 'End'].indexOf(e.key) < 0) return;
+      const tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+      let i = tabs.findIndex(function (t) { return t.dataset.tab === state.tab; });
+      if (e.key === 'ArrowRight') i = (i + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft') i = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === 'Home') i = 0;
+      else i = tabs.length - 1;
+      e.preventDefault();
+      setTab(tabs[i].dataset.tab);
+      tabs[i].focus();
+    });
+  }
+  applyTabUI();
   $('syncBtn').onclick = function () {
     if (DEMO) bootDemo();
     else syncFromSheet(false);

@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-180.png" sizes="180x180">
 <link rel="icon" href="icon-512.png" sizes="512x512">
+<link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -23,30 +24,30 @@
     </div>
     <div class="top-actions">
       <button type="button" class="icon-btn" id="syncBtn">새로고침</button>
-      <span class="sync" id="syncStatus"></span>
+      <span class="sync" id="syncStatus" role="status"></span>
     </div>
   </header>
-  <div id="staleBanner" class="stale-banner" hidden role="status"></div>
+  <div id="staleBanner" class="stale-banner" hidden role="status" aria-live="polite"></div>
   <input type="file" id="bankUploadInput" multiple accept=".csv,text/csv,.xlsx,.xls,.json,application/json,.jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
   <div id="feeIssues"></div>
   <div id="boot" class="boot" hidden></div>
   <div class="totals-head" id="totalsHead"></div>
   <div class="totals" id="totals"></div>
   <p class="totals-note" id="totalsNote"></p>
-  <nav class="tabs" aria-label="화면">
-    <button type="button" class="tab on" data-tab="sales">목표</button>
-    <button type="button" class="tab" data-tab="students">학생</button>
-    <button type="button" class="tab" data-tab="fee">교습비</button>
-    <button type="button" class="tab" data-tab="months">수입지출</button>
-    <button type="button" class="tab" data-tab="suji">현금흐름</button>
-    <button type="button" class="tab" data-tab="bank">거래내역</button>
+  <nav class="tabs" role="tablist" aria-label="화면">
+    <button type="button" class="tab on" role="tab" id="tab-sales" aria-controls="panel-sales" aria-selected="true" data-tab="sales">목표</button>
+    <button type="button" class="tab" role="tab" id="tab-students" aria-controls="panel-students" aria-selected="false" tabindex="-1" data-tab="students">학생</button>
+    <button type="button" class="tab" role="tab" id="tab-fee" aria-controls="panel-fee" aria-selected="false" tabindex="-1" data-tab="fee">교습비</button>
+    <button type="button" class="tab" role="tab" id="tab-months" aria-controls="panel-months" aria-selected="false" tabindex="-1" data-tab="months">수입지출</button>
+    <button type="button" class="tab" role="tab" id="tab-suji" aria-controls="panel-suji" aria-selected="false" tabindex="-1" data-tab="suji">현금흐름</button>
+    <button type="button" class="tab" role="tab" id="tab-bank" aria-controls="panel-bank" aria-selected="false" tabindex="-1" data-tab="bank">거래내역</button>
   </nav>
-  <div class="panel on" id="panel-sales"></div>
-  <div class="panel" id="panel-months"></div>
-  <div class="panel" id="panel-suji"></div>
-  <div class="panel" id="panel-fee"></div>
-  <div class="panel" id="panel-students"></div>
-  <div class="panel" id="panel-bank"></div>
+  <div class="panel on" id="panel-sales" role="tabpanel" aria-labelledby="tab-sales"></div>
+  <div class="panel" id="panel-months" role="tabpanel" aria-labelledby="tab-months" aria-hidden="true"></div>
+  <div class="panel" id="panel-suji" role="tabpanel" aria-labelledby="tab-suji" aria-hidden="true"></div>
+  <div class="panel" id="panel-fee" role="tabpanel" aria-labelledby="tab-fee" aria-hidden="true"></div>
+  <div class="panel" id="panel-students" role="tabpanel" aria-labelledby="tab-students" aria-hidden="true"></div>
+  <div class="panel" id="panel-bank" role="tabpanel" aria-labelledby="tab-bank" aria-hidden="true"></div>
 </div>
 <div class="foot" id="foot"></div>
 <script src="ledger.js"></script>

@@ -18,6 +18,21 @@
   function n(v) { return Number(v) || 0; }
   function man(v) { return String(Math.round(n(v) / 10000)); }
   function mon(ym) { return String(Number(String(ym || '').slice(5)) || ''); }
+  function pointYm(p) {
+    if (p == null) return '';
+    if (typeof p === 'string') return p;
+    return p.ym || '';
+  }
+  /* 같은 해만 있으면 월 숫자. 해가 바뀌는 첫 달은 25.10처럼 해를 붙인다. */
+  function tickText(pts, i) {
+    const ym = pointYm(pts[i]);
+    if (!ym || ym.indexOf('-') < 0) return mon(ym);
+    const y = ym.slice(0, 4);
+    const m = mon(ym);
+    const prev = i > 0 ? pointYm(pts[i - 1]).slice(0, 4) : '';
+    if (i === 0 || (prev && y !== prev)) return y.slice(2) + '.' + m;
+    return m;
+  }
 
   function halo(x, y, fill, text, fs) {
     return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" fill="' + fill + '" font-size="' + fs + '" font-weight="700" stroke="#0e141b" stroke-width="5" paint-order="stroke" style="paint-order:stroke fill">' + text + '</text>';
@@ -83,8 +98,8 @@
         ly = Math.max(18, Math.min(f.H - 18, ly));
         const fs = summary ? 22 : 14;
         marks += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (summary ? 5.5 : 4) + '" fill="' + color + '" stroke="#0e141b" stroke-width="1.4"/>';
-        marks += halo(xAt(i), ly, color, man(p[key]), fs);
-        if (key === 'expense') marks += label(xAt(i), f.H - 16, mon(p.ym), summary ? 22 : 14, '#9aa8ba');
+        if (!summary || i === pts.length - 1) marks += halo(xAt(i), ly, color, man(p[key]), fs);
+        if (key === 'expense') marks += label(xAt(i), f.H - 16, tickText(pts, i), summary ? 22 : 14, '#9aa8ba');
       });
       const sw = summary ? 3.6 : 2.6;
       return '<polyline points="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round"/>' + marks;
@@ -125,7 +140,7 @@
       s += '<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="5" fill="' + fill + '"' + (selected ? ' stroke="#f2f6fb" stroke-width="2"' : '') + '/>';
       const valY = v >= 0 ? top - 12 : top + h + 22;
       s += halo(cx, valY, fill, man(v), summary ? 22 : 14);
-      s += label(cx, f.H - 16, mon(p.ym), summary ? 22 : 14, selected ? '#f2f6fb' : '#9aa8ba');
+      s += label(cx, f.H - 16, tickText(pts, i), summary ? 22 : 14, selected ? '#f2f6fb' : '#9aa8ba');
       s += '<rect class="suji-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
     return { svg: wrap(f.W, f.H, s, '월별 현금흐름', !summary), scrollLeft: 99999 };
@@ -150,12 +165,12 @@
     goals.forEach(function (g) {
       const y = yAt(g.v);
       s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + g.color + '" stroke-width="1.5" stroke-dasharray="5 4"/>';
-      s += label(f.W - f.padR, y - 8, g.label, summary ? 16 : 12, g.color, 'end');
+      s += label(f.padL + 6, Math.max(16, y - 6), g.v >= 15000000 ? '1,500만' : '1,000만', summary ? 14 : 12, g.color, 'start');
     });
     pts.forEach(function (p, i) {
       const cx = xAt(i);
       if (p.value == null) {
-        s += label(cx, f.H - 16, mon(p.ym), summary ? 22 : 14, '#5c6b80');
+        s += label(cx, f.H - 16, tickText(pts, i), summary ? 22 : 14, '#5c6b80');
         return;
       }
       const v = n(p.value);
@@ -164,7 +179,7 @@
       const fill = p.unpaid ? 'var(--exp)' : (p.over ? 'var(--inc)' : (p.cur ? 'var(--fee)' : '#6aa8ff'));
       s += '<rect class="sales-bar" data-fee-ym="' + p.ym + '" x="' + (cx - barW / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="5" fill="' + fill + '"/>';
       s += halo(cx, y - 12, '#f2f6fb', man(v), summary ? 22 : 14);
-      s += label(cx, f.H - 16, mon(p.ym), summary ? 22 : 14, p.cur ? '#f2f6fb' : '#9aa8ba');
+      s += label(cx, f.H - 16, tickText(pts, i), summary ? 22 : 14, p.cur ? '#f2f6fb' : '#9aa8ba');
     });
     return { svg: wrap(f.W, f.H, s, '월별 교습비', !summary), scrollLeft: 99999 };
   }
@@ -174,42 +189,33 @@
     const pts = points || [];
     const f = frame(pts.length, summary, true);
     const maxEn = Math.max(1, Math.max.apply(null, pts.map(function (p) { return n(p.enrolled); }).concat([1])));
-    const maxFlow = Math.max(1, Math.max.apply(null, pts.map(function (p) { return Math.max(n(p.left), n(p.entered)); }).concat([1])));
-    const axis = Math.max(maxEn, maxFlow) * 1.28;
-    const yAt = function (v) { return f.padT + f.plotH * (1 - Math.min(v, axis) / axis); };
-    const y0 = yAt(0);
+    const enTop = maxEn * 1.28;
+    const yEn = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), enTop) / enTop); };
     const xAt = function (i) { return f.padL + f.slotW * i + f.slotW / 2; };
-    const pairW = Math.max(summary ? 26 : 22, Math.min(summary ? 52 : 32, f.slotW * 0.78));
-    let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + yAt(axis / 2).toFixed(1) + '" y2="' + yAt(axis / 2).toFixed(1) + '" stroke="#2c3a4d"/>';
-    s += label(f.padL - 8, yAt(0) + 5, '0', summary ? 20 : 13, '#9aa8ba', 'end');
-    s += label(f.padL - 8, yAt(axis / 2) + 5, String(Math.round(axis / 2)), summary ? 20 : 13, '#9aa8ba', 'end');
-    s += label(f.padL - 8, yAt(axis) + 5, String(Math.round(axis)), summary ? 20 : 13, '#9aa8ba', 'end');
+    const y0 = yEn(0);
+    let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#2c3a4d"/>';
+    s += label(f.padL - 8, yEn(enTop) + 5, String(Math.round(enTop)), summary ? 18 : 13, '#9aa8ba', 'end');
+    s += label(f.padL - 8, y0 + 4, '0', summary ? 18 : 13, '#9aa8ba', 'end');
+    if (pts.length) {
+      const line = pts.map(function (p, i) { return xAt(i).toFixed(1) + ',' + yEn(n(p.enrolled)).toFixed(1); }).join(' ');
+      s += '<polyline points="' + line + '" fill="none" stroke="#0e141b" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>';
+      s += '<polyline points="' + line + '" fill="none" stroke="var(--fee)" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    const fs = 14;
     pts.forEach(function (p, i) {
       const cx = xAt(i);
-      const ye = yAt(n(p.enrolled));
-      const he = Math.max(3, y0 - ye);
-      s += '<rect class="stu-flow-hit" data-ym="' + p.ym + '" x="' + (cx - pairW / 2).toFixed(1) + '" y="' + ye.toFixed(1) + '" width="' + pairW.toFixed(1) + '" height="' + he.toFixed(1) + '" rx="5" fill="var(--fee)" opacity="0.55"/>';
-      s += halo(cx, ye - 12, 'var(--fee)', String(n(p.enrolled)), summary ? 22 : 14);
-      const gap = 3;
-      const bw = (pairW - gap) / 2;
-      if (n(p.entered)) {
-        const y = yAt(n(p.entered));
-        const h = Math.max(3, y0 - y);
-        const x = cx - pairW / 2;
-        s += '<rect class="stu-flow-hit" data-ym="' + p.ym + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="3" fill="var(--inc)"/>';
-        s += halo(x + bw / 2, y - 8, 'var(--inc)', String(n(p.entered)), summary ? 16 : 12);
+      const ye = yEn(n(p.enrolled));
+      s += '<circle cx="' + cx.toFixed(1) + '" cy="' + ye.toFixed(1) + '" r="' + (summary ? 5 : 4) + '" fill="var(--fee)" stroke="#0e141b" stroke-width="1.4"/>';
+      const ly = Math.max(f.padT + 16, Math.min(y0 - 8, ye - (summary ? 18 : 14)));
+      s += halo(cx, ly, 'var(--fee)', String(n(p.enrolled)), summary ? 20 : 14);
+      s += label(cx, f.H - (summary ? 16 : 34), tickText(pts, i), summary ? 18 : 13, '#9aa8ba');
+      if (!summary) {
+        s += '<text x="' + (cx - 1).toFixed(1) + '" y="' + (f.H - 12) + '" text-anchor="end" fill="var(--inc)" font-size="' + fs + '" font-weight="700">+' + n(p.entered) + '</text>';
+        s += '<text x="' + (cx + 1).toFixed(1) + '" y="' + (f.H - 12) + '" text-anchor="start" fill="var(--exp)" font-size="' + fs + '" font-weight="700">−' + n(p.left) + '</text>';
       }
-      if (n(p.left)) {
-        const y = yAt(n(p.left));
-        const h = Math.max(3, y0 - y);
-        const x = cx - pairW / 2 + bw + gap;
-        s += '<rect class="stu-flow-hit" data-ym="' + p.ym + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="3" fill="var(--exp)"/>';
-        s += halo(x + bw / 2, y - 8, 'var(--exp)', String(n(p.left)), summary ? 16 : 12);
-      }
-      s += label(cx, f.H - 16, mon(p.ym), summary ? 22 : 14, '#9aa8ba');
       s += '<rect class="stu-flow-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
-    return { svg: wrap(f.W, f.H, s, '재원·신규·퇴소', !summary), scrollLeft: 99999 };
+    return { svg: wrap(f.W, f.H, s, '재원 선, 아래 숫자는 신규와 퇴소', !summary), scrollLeft: 99999 };
   }
 
   function expenseStack(model) {
@@ -257,7 +263,7 @@
       }
       const yLabel = n(p.total) >= 0 ? yAt(Math.max(0, n(p.total))) - 12 : yAt(n(p.total)) + 20;
       s += halo(cx, yLabel, n(p.total) >= 0 ? '#f2f6fb' : 'var(--exp)', man(p.total), 20);
-      s += label(cx, f.H - 16, mon(p.ym), 22, '#9aa8ba');
+      s += label(cx, f.H - 16, tickText(pts, i), 22, '#9aa8ba');
       s += '<rect class="nx-exp-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
     return { svg: wrap(f.W, f.H, s, '지출 항목 추이', false) };
@@ -286,7 +292,7 @@
       if (n(p.unpaid)) s += '<rect x="' + x.toFixed(1) + '" y="' + yu.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(2, (n(p.paid) ? yp : y0) - yu).toFixed(1) + '" rx="4" fill="var(--warn)" opacity="' + op + '"/>';
       const rateColor = p.rate >= 95 ? 'var(--inc)' : (p.rate >= 85 ? '#f2f6fb' : 'var(--warn)');
       s += halo(cx, (n(p.unpaid) || n(p.paid) ? yu : y0) - 14, rateColor, p.rate + '%', 20);
-      s += label(cx, f.H - 16, mon(p.ym), 20, p.cur ? '#f2f6fb' : '#9aa8ba');
+      s += label(cx, f.H - 16, tickText(pts, i), 20, p.cur ? '#f2f6fb' : '#9aa8ba');
       s += '<rect class="nx-col-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
     return { svg: wrap(f.W, f.H, s, '교습비 수납률', false) };
@@ -318,7 +324,7 @@
     pts.forEach(function (p, i) {
       s += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(n(p.avg)).toFixed(1) + '" r="5.5" fill="#8ec5ff" stroke="#0e141b" stroke-width="1.5"/>';
       s += halo(xAt(i), yAt(n(p.avg)) - 16, '#f2f6fb', (n(p.avg) / 10000).toFixed(1), 20);
-      s += label(xAt(i), f.H - 16, mon(p.ym), 22, '#9aa8ba');
+      s += label(xAt(i), f.H - 16, tickText(pts, i), 22, '#9aa8ba');
     });
     return { svg: wrap(f.W, f.H, s, '1인당 평균 교습비', false) };
   }
@@ -355,10 +361,55 @@
       s += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(n(p.cum)).toFixed(1) + '" r="6" fill="' + col + '" stroke="#0e141b" stroke-width="1.5"/>';
       const below = n(p.cum) < n(p.flow);
       s += halo(xAt(i), yAt(n(p.cum)) + (below ? 24 : -14), col, man(p.cum), 20);
-      s += label(xAt(i), f.H - 16, mon(p.ym), 20, p.ym === curYm ? '#f2f6fb' : '#9aa8ba');
+      s += label(xAt(i), f.H - 16, tickText(pts, i), 20, p.ym === curYm ? '#f2f6fb' : '#9aa8ba');
       s += '<rect class="nx-cum-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
     return { svg: wrap(f.W, f.H, s, '누적 현금흐름', false), shown: pts };
+  }
+
+  function yearBars(years) {
+    const pts = years || [];
+    if (!pts.length) return null;
+    const f = frame(pts.length, true, true);
+    const vals = [];
+    pts.forEach(function (y) { vals.push(n(y.income), n(y.expense), n(y.net)); });
+    const minV = Math.min(0, Math.min.apply(null, vals));
+    const maxV = Math.max(1, Math.max.apply(null, vals));
+    const top = Math.max(maxV * 1.22, 1000000);
+    const bot = minV < 0 ? minV * 1.28 : 0;
+    const span = (top - bot) || 1;
+    const yAt = function (v) { return f.padT + f.plotH * (1 - (v - bot) / span); };
+    const y0 = yAt(0);
+    const series = [
+      { key: 'income', color: 'var(--inc)' },
+      { key: 'expense', color: 'var(--exp)' },
+      { key: 'net', color: 'var(--net)' }
+    ];
+    const barW = Math.max(16, Math.min(40, (f.slotW - 36) / 3));
+    const gap = 8;
+    let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#3a4660" stroke-width="1.4"/>';
+    s += label(f.padL - 8, yAt(top) + 5, man(top), 18, '#9aa8ba', 'end');
+    s += label(f.padL - 8, y0 + 5, '0', 18, '#9aa8ba', 'end');
+    if (bot < 0) s += label(f.padL - 8, yAt(bot) + 5, man(bot), 18, '#9aa8ba', 'end');
+    pts.forEach(function (p, i) {
+      const cx = f.padL + f.slotW * (i + 0.5);
+      const totalW = series.length * barW + (series.length - 1) * gap;
+      series.forEach(function (ser, si) {
+        const v = n(p[ser.key]);
+        const x = cx - totalW / 2 + si * (barW + gap);
+        const y = yAt(v);
+        const topY = Math.min(y, y0);
+        const h = Math.max(2, Math.abs(y0 - y));
+        s += '<rect x="' + x.toFixed(1) + '" y="' + topY.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="5" fill="' + ser.color + '"/>';
+      });
+      const net = n(p.net);
+      const netX = cx - totalW / 2 + 2 * (barW + gap) + barW / 2;
+      const netY = yAt(net);
+      const ly = net >= 0 ? Math.max(f.padT + 16, Math.min(netY, y0) - 20) : Math.max(netY, y0) + 20;
+      s += halo(netX, ly, 'var(--net)', man(net), 18);
+      s += label(cx, f.H - 16, String(p.year || '').slice(2) + '년', 20, '#f2f6fb');
+    });
+    return { svg: wrap(f.W, f.H, s, '연도별 수입 지출 순이익', false) };
   }
 
   function gradeLines(yms, series) {
@@ -376,7 +427,7 @@
       s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '" stroke="#2c3a4d"/>';
       s += label(L - 8, yy + 4, man(max * t), 16, '#9aa8ba', 'end');
     });
-    yms.forEach(function (ym, i) { s += label(x(i), H - 14, mon(ym), 18, '#9aa8ba'); });
+    yms.forEach(function (ym, i) { s += label(x(i), H - 14, tickText(yms, i), 18, '#9aa8ba'); });
     (series || []).forEach(function (ser) {
       const pts = (ser.values || []).map(function (v, i) { return x(i).toFixed(1) + ',' + y(n(v)).toFixed(1); }).join(' ');
       s += '<polyline points="' + pts + '" fill="none" stroke="' + ser.color + '" stroke-width="3" stroke-linejoin="round"/>';
@@ -416,6 +467,7 @@
     cashBars: cashBars,
     salesBars: salesBars,
     enrollBars: enrollBars,
+    yearBars: yearBars,
     expenseStack: expenseStack,
     collectionBars: collectionBars,
     arpuChart: arpuChart,
