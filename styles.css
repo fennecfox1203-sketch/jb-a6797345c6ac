@@ -236,8 +236,8 @@ h1 {
 .chart-card .chart-hint { font-size: .8rem; font-weight: 700; color: var(--muted); padding: 0 6px 4px; }
 .chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .chart-card.summary .chart-scroll { overflow: hidden; touch-action: manipulation; }
-.chart-card.summary.h-scroll .chart-scroll { overflow-x: auto; overflow-y: hidden; touch-action: pan-x; }
 .chart-card svg { display: block; }
+.chart-card.summary svg { width: 100%; height: auto; max-width: 100%; }
 .legend {
   display: flex;
   flex-wrap: wrap;

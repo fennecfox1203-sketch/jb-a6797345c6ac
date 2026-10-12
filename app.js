@@ -307,7 +307,7 @@
     }).join('') + '</div>';
   }
   function chartCard(opts) {
-    return '<div class="chart-card ' + (opts.summary ? 'summary' : 'detail') + (opts.scroll ? ' h-scroll' : '') + '" id="' + opts.id + '">'
+    return '<div class="chart-card ' + (opts.summary ? 'summary' : 'detail') + '" id="' + opts.id + '">'
       + (opts.hint ? '<div class="chart-hint">' + opts.hint + '</div>' : '')
       + '<div class="chart-scroll" id="' + opts.scrollId + '">' + opts.svg + '</div>'
       + legend(opts.legend || [])
@@ -804,7 +804,7 @@ function minusWon(n) {
     const stack = C.expenseStack(J.expenseStack(DATA));
     const cmp = J.periodCompare(DATA);
     const months = (DATA.months || []).slice().reverse();
-    p.innerHTML = chartCard({ id: 'monthsChart', scrollId: 'monthsHomeScroll', summary: true, scroll: true, hint: '최근 9개월 · 모든 달에 만 원 · 수입은 점 위, 지출은 점 아래 · 좌우로 밀 수 있음 · 누르면 전체', svg: chart.svg, legend: [
+    p.innerHTML = chartCard({ id: 'monthsChart', scrollId: 'monthsHomeScroll', summary: true, hint: '최근 9개월 · 만 원 · 수입은 점 위, 지출은 점 아래 · 누르면 전체', svg: chart.svg, legend: [
       { color: 'var(--inc)', label: '수입' }, { color: 'var(--exp)', label: '지출' }
     ] })
       + periodCard(cmp)
@@ -820,9 +820,6 @@ function minusWon(n) {
         return '<button type="button" class="row" data-ym="' + m.ym + '"><div><div class="ym">' + esc(J.shortYm(m.ym)) + '</div>' + monthBar(m) + '</div><div class="right"><div style="color:var(--inc)">' + plusWon(m.income) + '</div>' + expHtml + '<div class="netline">순 ' + plusWon(net) + '</div></div></button>';
       }).join('');
     bindPress('monthsChart', function () { goMonthsChartDetail(); });
-    const monthsHome = $('monthsHomeScroll');
-    pinRight(monthsHome);
-    bindChartHDrag(monthsHome);
     const toNet = $('toSujiNet');
     if (toNet) toNet.onclick = function () { setTab('suji'); };
     p.querySelectorAll('.nx-exp-hit').forEach(function (h) {
@@ -1057,7 +1054,7 @@ function minusWon(n) {
         + '<div class="metric"><span class="n">최근 재원</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
         + '<div class="metric"><span class="n">기간 신규</span><span class="a inc">' + totE + '명</span></div>'
         + '<div class="metric"><span class="n">기간 퇴소</span><span class="a exp">' + totL + '명</span></div></div>'
-        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, scroll: true, hint: '선은 재원·휴원·퇴소 인원 · 아래 숫자는 신규·그달 퇴소 · 누르면 명단', svg: chart.svg, legend: [
+        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '선은 재원·휴원·퇴소 인원 · 모든 달에 숫자 · 아래 숫자는 신규·그달 퇴소 · 누르면 명단', svg: chart.svg, legend: [
           { color: 'var(--fee)', label: '재원' }, { color: 'var(--warn)', label: '휴원' }, { color: 'var(--exp)', label: '퇴소' }
         ] })
         + '<div class="card"><h2>월별</h2>' + (rows || emptyBox('데이터 없음')) + '</div>' + peekHtml();
@@ -1078,7 +1075,7 @@ function minusWon(n) {
       const tail = d == null ? '' : (d === 0 ? ' · 전월과 같음' : (' · 전월보다 ' + Math.abs(d) + '명 ' + (d > 0 ? '많음' : '적음')));
       flowLine = '<p class="summary-line">' + esc(J.longYmLabel(flowCh.last.ym) + ' 재원 ' + flowCh.last.enrolled + '명' + tail + '. 휴원 ' + (flowCh.last.onLeave || 0) + '명 · 퇴소 ' + (flowCh.last.withdrawn || 0) + '명. 최근 3개월 신규 ' + flowCh.recentEntered + '명 · 그달 퇴소 ' + flowCh.recentLeft + '명.') + '</p>';
     }
-    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, scroll: true, hint: '선은 재원·휴원·퇴소 인원 · 좌우로 밀 수 있음 · 누르면 월별', svg: chart.svg, legend: [
+    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '선은 재원·휴원·퇴소 인원 · 누르면 월별', svg: chart.svg, legend: [
       { color: 'var(--fee)', label: '재원' }, { color: 'var(--warn)', label: '휴원' }, { color: 'var(--exp)', label: '퇴소' }
     ] })
       + '<div class="card">' + flowLine + '<div class="metric"><span class="n">' + (last ? esc(J.shortYm(last.ym)) + ' 재원' : '재원') + '</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
@@ -1089,9 +1086,6 @@ function minusWon(n) {
       + gradeSalesCard(pts.map(function (x) { return x.ym; }))
       + arpuCard();
     bindPress('stuEnrollChart', function () { goStudentChartDetail(); });
-    const stuHome = $('stuHomeScroll');
-    pinRight(stuHome);
-    bindChartHDrag(stuHome);
   }
 
   function gradeCard(ym) {

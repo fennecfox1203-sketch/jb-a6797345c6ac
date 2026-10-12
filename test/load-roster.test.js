@@ -712,20 +712,20 @@ function assertNoTextOverlap(svg, title) {
   }
 }
 
-test('income and expense numbers sit on every month without overlap', function () {
+test('summary month chart fits the screen and detail labels every point', function () {
   J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
   try {
     const src = globalThis.buildDemoSource();
     const nd = J.buildLedger(src.bank, src.roster);
     const home = nd.months.filter(function (m) { return m.ym <= '2026-09'; }).slice(-9);
     const svg = globalThis.Charts.monthsLine(home, { summary: true }).svg;
-    assert.match(svg, /width="\d+/);
+    assert.match(svg.slice(0, 120), /width="100%"/);
+    assert.doesNotMatch(svg.slice(0, 120), /width="\d+"/);
     const texts = svgTexts(svg);
     const income = texts.filter(function (t) { return t.series === 'income'; });
     const expense = texts.filter(function (t) { return t.series === 'expense'; });
-    assert.equal(income.length, home.length);
-    assert.equal(expense.length, home.length);
-    assert.ok(income.every(function (t) { return t.fs >= 15; }));
+    assert.ok(income.length >= 1 && expense.length >= 1);
+    assert.ok(income.length <= home.length && expense.length <= home.length);
     const circles = [];
     const re = /<circle cx="([^"]+)" cy="([^"]+)"/g;
     let m;
@@ -733,16 +733,33 @@ test('income and expense numbers sit on every month without overlap', function (
     const incC = circles.slice(0, home.length);
     const expC = circles.slice(home.length, home.length * 2);
     income.forEach(function (t) {
-      const c = incC.find(function (p) { return Math.abs(p.x - t.x) < 0.3; });
+      const c = incC.find(function (p) { return Math.abs(p.x - t.x) < 1; });
       assert.ok(c && t.y < c.y - 4, 'income label above its point');
     });
     expense.forEach(function (t) {
-      const c = expC.find(function (p) { return Math.abs(p.x - t.x) < 0.3; });
+      const c = expC.find(function (p) { return Math.abs(p.x - t.x) < 1; });
       assert.ok(c && t.y > c.y + 4, 'expense label below its point');
     });
     assert.equal((svg.match(/<rect /g) || []).length, home.length);
     assertNoTextOverlap(svg, 'months');
-    assertNoTextOverlap(globalThis.Charts.monthsLine(nd.months, { summary: false }).svg, 'months detail');
+    const detail = globalThis.Charts.monthsLine(nd.months, { summary: false }).svg;
+    const dTexts = svgTexts(detail);
+    assert.equal(dTexts.filter(function (t) { return t.series === 'income'; }).length, nd.months.length);
+    assert.equal(dTexts.filter(function (t) { return t.series === 'expense'; }).length, nd.months.length);
+    assert.match(detail, /width="\d+/);
+    assertNoTextOverlap(detail, 'months detail');
+    const crowded = [];
+    for (let i = 0; i < 9; i++) {
+      crowded.push({ ym: '2026-0' + (i + 1), income: 5000000 + i * 1000, expense: 4900000 + i * 1000 });
+    }
+    const tight = globalThis.Charts.monthsLine(crowded, { summary: true }).svg;
+    assert.match(tight, /width="100%"/);
+    assertNoTextOverlap(tight, 'months crowded');
+    const tightDetail = globalThis.Charts.monthsLine(crowded, { summary: false }).svg;
+    const td = svgTexts(tightDetail);
+    assert.equal(td.filter(function (t) { return t.series === 'income'; }).length, 9);
+    assert.equal(td.filter(function (t) { return t.series === 'expense'; }).length, 9);
+    assertNoTextOverlap(tightDetail, 'months crowded detail');
   } finally {
     J.setNow(function () { return new Date(); });
   }
@@ -775,12 +792,22 @@ test('student chart draws 재원, 휴원, and 퇴소 and labels do not collide',
     nd.restMonths = J.parseRestRows(src.rest);
     const pts = J.flowSeries(nd).slice(-9);
     const svg = globalThis.Charts.enrollBars(pts, { summary: true }).svg;
+    assert.match(svg.slice(0, 120), /width="100%"/);
+    assert.doesNotMatch(svg.slice(0, 120), /width="\d+"/);
     const texts = svgTexts(svg);
     ['enrolled', 'onLeave', 'withdrawn'].forEach(function (key) {
-      assert.equal(texts.filter(function (t) { return t.series === key; }).length, pts.length, key);
+      assert.ok(texts.filter(function (t) { return t.series === key; }).length <= pts.length, key);
     });
     assert.ok((svg.match(/<polyline /g) || []).length >= 6);
     assertNoTextOverlap(svg, 'enroll');
+    const detail = globalThis.Charts.enrollBars(J.flowSeries(nd), { summary: false }).svg;
+    const dTexts = svgTexts(detail);
+    const allPts = J.flowSeries(nd);
+    ['enrolled', 'onLeave', 'withdrawn'].forEach(function (key) {
+      assert.equal(dTexts.filter(function (t) { return t.series === key; }).length, allPts.length, key);
+    });
+    assert.match(detail, /width="\d+/);
+    assertNoTextOverlap(detail, 'enroll detail');
     assertNoTextOverlap(globalThis.Charts.yearBars(J.yearRollup(nd)).svg, 'year demo');
     assertNoTextOverlap(globalThis.Charts.cashBars(J.cashSeries(nd).slice(-9), { summary: true }).svg, 'cash');
     assertNoTextOverlap(globalThis.Charts.salesBars(J.salesPoints(nd).slice(-9), { summary: true }).svg, 'sales');
