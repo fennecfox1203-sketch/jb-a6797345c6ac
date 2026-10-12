@@ -83,7 +83,7 @@ h1 {
   background: rgba(255, 109, 125, .12);
   color: #ffc1c8;
 }
-.icon-btn, .btn, .back, .filt button, .seg button, .tab, .xbtn, .detail-toggle {
+.icon-btn, .btn, .back, .filt button, .seg button, .tab, .detail-toggle {
   min-height: var(--hit);
 }
 .icon-btn, .btn {
@@ -356,32 +356,6 @@ h1 {
 .tree-item .amt { font-variant-numeric: tabular-nums; color: var(--muted); }
 .tree-kids { display: none; margin: 6px 0 2px 8px; padding-left: 10px; border-left: 2px solid var(--line); }
 .tree-kids.open { display: block; }
-
-.xbtn {
-  border: 1px solid var(--line);
-  background: var(--card2);
-  color: var(--muted);
-  border-radius: 10px;
-  padding: 0 12px;
-  font-size: .85rem;
-  font-weight: 800;
-}
-.xbtn.warn { color: var(--warn); border-color: #6a5420; }
-.excluded-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  background: var(--card2);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 8px 12px;
-  margin-bottom: 10px;
-  min-height: var(--hit);
-  color: var(--muted);
-  font-size: .88rem;
-}
-.excluded-bar button { border: 0; background: transparent; color: var(--accent); font-weight: 800; min-height: var(--hit); }
 
 .detail-toggle {
   display: block;
