@@ -523,6 +523,7 @@
     );
     const B = bankRaw.map(function (r) { return _pad(r || [], bankWidth); });
     let carryYear = '';
+    let carry = null;
     const bank = B.slice(hi + 1).map(function (r) {
       const row = r.slice();
       function cell(idx) { return idx >= 0 && r[idx] != null ? r[idx] : ''; }
@@ -538,7 +539,9 @@
       row[BANK_CANON.grade] = cell(bcols.grade);
       row[19] = cell(monthIdx);
       row[20] = cell(yearIdx);
-      /* 병합된 셀은 첫 줄에만 연도·거래월이 있고 아래는 빈 칸이다. */
+      /* 병합된 셀은 첫 줄에만 날짜·거래월·구분·연도가 있고 아래는 빈 칸이다. */
+      const hadDay = !!_s(row[BANK_CANON.day]);
+      const hadYm = !!_ym(row[BANK_CANON.ym]);
       const yPay = yearOf(row[20]);
       const yDay = yearOf(row[BANK_CANON.day]);
       if (yPay) carryYear = yPay;
@@ -547,8 +550,34 @@
         const y = yDay || carryYear;
         if (y) row[20] = y;
       }
-      if (!_ym(row[BANK_CANON.ym]) && _ym(row[BANK_CANON.day])) row[BANK_CANON.ym] = _ym(row[BANK_CANON.day]);
+      if (!hadYm && _ym(row[BANK_CANON.day])) row[BANK_CANON.ym] = _ym(row[BANK_CANON.day]);
+      const totalish = [row[BANK_CANON.memo], row[BANK_CANON.cat2], row[BANK_CANON.cat3]].some(function (t) {
+        const k = _s(t).replace(/\s/g, '');
+        return k === '합계' || k === '총계' || k === '총합' || k === '소계' || k === '합계금액';
+      });
+      if (!hadDay && !hadYm && carry && _num(row[BANK_CANON.amt]) !== 0 && !totalish) {
+        row[BANK_CANON.ym] = carry.ym;
+        row[BANK_CANON.day] = carry.day;
+        if (!_s(row[BANK_CANON.dir]) && carry.dir) row[BANK_CANON.dir] = carry.dir;
+        if (!_s(row[BANK_CANON.cat2]) && carry.cat2) row[BANK_CANON.cat2] = carry.cat2;
+        if (!_s(row[BANK_CANON.cat3]) && carry.cat3) row[BANK_CANON.cat3] = carry.cat3;
+        if (!_s(row[19]) && carry.pay) row[19] = carry.pay;
+        if (!_s(row[20]) && carry.year) row[20] = carry.year;
+      }
       row[19] = _target(row);
+      const ymNow = _ym(row[BANK_CANON.ym]);
+      if ((hadDay || hadYm) && ymNow) {
+        carry = {
+          ym: ymNow,
+          day: _s(row[BANK_CANON.day]),
+          dir: _s(row[BANK_CANON.dir]),
+          cat2: _s(row[BANK_CANON.cat2]),
+          cat3: _s(row[BANK_CANON.cat3]),
+          pay: _s(row[19]),
+          year: yearOf(row[20]) || yearOf(row[19])
+        };
+        if (carry.year) carryYear = carry.year;
+      }
       return row;
     });
     const layout = resolveRoster(rosRows || []);

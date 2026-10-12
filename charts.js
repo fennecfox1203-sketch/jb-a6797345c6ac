@@ -64,6 +64,10 @@
     const summary = !!(opts && opts.summary);
     const pts = points || [];
     const f = frame(pts.length, summary, true);
+    if (!summary) {
+      f.padR = 48;
+      f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
+    }
     const vals = [];
     pts.forEach(function (p) { vals.push(n(p.income), n(p.expense)); });
     const minV = vals.length ? Math.min(0, Math.min.apply(null, vals)) : 0;
@@ -81,6 +85,7 @@
       const grid = Math.abs(v) < 1 || v === 0;
       s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + (grid && bot < 0 ? '#3a4660' : '#2c3a4d') + '" stroke-width="' + (Math.abs(v) < 1 ? 1.4 : 1) + '"/>';
       s += label(f.padL - 8, y + 5, man(v), summary ? 20 : 13, '#9aa8ba', 'end');
+      if (!summary) s += label(f.W - 6, y + 5, man(v), 13, '#9aa8ba', 'end');
     });
     if (bot < 0) {
       s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#3a4660" stroke-width="1.4" stroke-dasharray="4 3"/>';
@@ -117,6 +122,10 @@
     const summary = !!(opts && opts.summary);
     const pts = points || [];
     const f = frame(pts.length, summary, true);
+    if (!summary) {
+      f.padR = 48;
+      f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
+    }
     const vals = pts.map(function (p) { return n(p.flow); });
     const maxAbs = Math.max(1, Math.max.apply(null, vals.map(function (v) { return Math.abs(v); }).concat([1])));
     const axis = Math.max(maxAbs * 1.18, 1000000);
@@ -128,6 +137,11 @@
     s += label(f.padL - 8, yAt(axis) + 5, man(axis), summary ? 20 : 13, '#9aa8ba', 'end');
     s += label(f.padL - 8, y0 + 5, '0', summary ? 20 : 13, '#9aa8ba', 'end');
     s += label(f.padL - 8, yAt(-axis) + 5, man(-axis), summary ? 20 : 13, '#9aa8ba', 'end');
+    if (!summary) {
+      s += label(f.W - 6, yAt(axis) + 5, man(axis), 13, '#9aa8ba', 'end');
+      s += label(f.W - 6, y0 + 5, '0', 13, '#9aa8ba', 'end');
+      s += label(f.W - 6, yAt(-axis) + 5, man(-axis), 13, '#9aa8ba', 'end');
+    }
     const sel = opts && opts.selectedYm;
     pts.forEach(function (p, i) {
       const v = n(p.flow);
