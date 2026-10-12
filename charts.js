@@ -188,6 +188,10 @@
     const summary = !!(opts && opts.summary);
     const pts = points || [];
     const f = frame(pts.length, summary, true);
+    if (!summary) {
+      f.padR = 42;
+      f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
+    }
     const maxEn = Math.max(1, Math.max.apply(null, pts.map(function (p) { return n(p.enrolled); }).concat([1])));
     const enTop = maxEn * 1.28;
     const yEn = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), enTop) / enTop); };
@@ -196,6 +200,10 @@
     let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#2c3a4d"/>';
     s += label(f.padL - 8, yEn(enTop) + 5, String(Math.round(enTop)), summary ? 18 : 13, '#9aa8ba', 'end');
     s += label(f.padL - 8, y0 + 4, '0', summary ? 18 : 13, '#9aa8ba', 'end');
+    if (!summary) {
+      s += label(f.W - 6, yEn(enTop) + 5, String(Math.round(enTop)), 13, '#9aa8ba', 'end');
+      s += label(f.W - 6, y0 + 4, '0', 13, '#9aa8ba', 'end');
+    }
     if (pts.length) {
       const line = pts.map(function (p, i) { return xAt(i).toFixed(1) + ',' + yEn(n(p.enrolled)).toFixed(1); }).join(' ');
       s += '<polyline points="' + line + '" fill="none" stroke="#0e141b" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>';
@@ -302,7 +310,8 @@
     const pts = points || [];
     if (!pts.length) return null;
     const f = frame(pts.length, true, false);
-    const maxV = Math.max(1, Math.max.apply(null, pts.map(function (p) { return n(p.avg); })));
+    const avgs = pts.filter(function (p) { return n(p.count); }).map(function (p) { return n(p.avg); });
+    const maxV = Math.max(1, avgs.length ? Math.max.apply(null, avgs) : 1);
     const top = Math.max(Math.ceil(maxV * 1.28 / 20000) * 20000, 100000);
     const yAt = function (v) { return f.padT + f.plotH * (1 - v / top); };
     const xAt = function (i) { return f.padL + f.slotW * (i + 0.5); };
@@ -313,18 +322,37 @@
     s += label(f.padL - 8, yAt(top / 2) + 5, man(top / 2), 20, '#9aa8ba', 'end');
     s += label(f.padL - 8, yAt(top) + 5, man(top), 20, '#9aa8ba', 'end');
     pts.forEach(function (p, i) {
+      if (!n(p.count)) return;
       const h = f.plotH * 0.42 * (n(p.count) / maxC);
       const y = yAt(0) - h;
       s += '<rect x="' + (xAt(i) - barW / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(2, h).toFixed(1) + '" rx="4" fill="var(--fee)" opacity="0.22"/>';
       s += label(xAt(i), yAt(0) - 8, n(p.count) + '명', 14, '#9aa8ba');
     });
-    const line = pts.map(function (p, i) { return xAt(i).toFixed(1) + ',' + yAt(n(p.avg)).toFixed(1); }).join(' ');
-    s += '<polyline points="' + line + '" fill="none" stroke="#0e141b" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>';
-    s += '<polyline points="' + line + '" fill="none" stroke="#8ec5ff" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/>';
+    function poly(indices) {
+      if (!indices.length) return;
+      const line = indices.map(function (i) { return xAt(i).toFixed(1) + ',' + yAt(n(pts[i].avg)).toFixed(1); }).join(' ');
+      s += '<polyline points="' + line + '" fill="none" stroke="#0e141b" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>';
+      s += '<polyline points="' + line + '" fill="none" stroke="#8ec5ff" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    let seg = [];
     pts.forEach(function (p, i) {
+      if (!n(p.count)) {
+        poly(seg);
+        seg = [];
+        return;
+      }
+      seg.push(i);
+    });
+    poly(seg);
+    pts.forEach(function (p, i) {
+      if (!n(p.count)) return;
       s += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(n(p.avg)).toFixed(1) + '" r="5.5" fill="#8ec5ff" stroke="#0e141b" stroke-width="1.5"/>';
       s += halo(xAt(i), yAt(n(p.avg)) - 16, '#f2f6fb', (n(p.avg) / 10000).toFixed(1), 20);
       s += label(xAt(i), f.H - 16, tickText(pts, i), 22, '#9aa8ba');
+    });
+    pts.forEach(function (p, i) {
+      if (n(p.count)) return;
+      s += label(xAt(i), f.H - 16, tickText(pts, i), 22, '#5c6b80');
     });
     return { svg: wrap(f.W, f.H, s, '1인당 평균 교습비', false) };
   }

@@ -17,7 +17,6 @@
   const BANK_UPLOAD_API = window.LEDGER_BANK_UPLOAD_API || 'http://127.0.0.1:8787/api/upload-bank';
   const CAT_QUEUE_API = window.LEDGER_CAT_QUEUE_API || 'http://127.0.0.1:8787/api/queue-cat-overrides';
   const CAT_PENDING_API = window.LEDGER_CAT_PENDING_API || 'http://127.0.0.1:8787/api/pending-cat-overrides';
-  const EX_KEY = 'jangbu_unpaid_excluded_v1';
 
   function emptyData() {
     return {
@@ -35,13 +34,12 @@
     } catch (e) {}
   }
 
-  let demoSaved = {};
   let booting = !DEMO && !(DATA.monthDetails && Object.keys(DATA.monthDetails).length);
   let loadNote = null;
   let state = {
     tab: 'sales', month: null, view: 'list', salesView: 'list', sujiView: 'list',
     feeMonth: null, bankMonth: null, dirFilt: 'all', feeFilt: 'unpaid',
-    stuFlowYm: null, stuView: 'list', q: '', confirm: null, showExcluded: false, peek: null
+    stuFlowYm: null, stuView: 'list', q: '', peek: null
   };
   let focusMem = null;
 
@@ -49,31 +47,7 @@
 
   function hasData() { return DATA.months && DATA.months.length; }
 
-  function loadSaved() {
-    if (DEMO) return demoSaved;
-    try { return JSON.parse(localStorage.getItem(EX_KEY) || '{}') || {}; }
-    catch (e) { return {}; }
-  }
-  function saveSaved(map) {
-    const only = {};
-    Object.keys(map || {}).forEach(function (k) {
-      const v = map[k];
-      if (v && v.ym && v.name && !v.sheet && !v.session) only[v.ym + '|' + v.name] = { ym: v.ym, name: v.name, at: v.at || '' };
-    });
-    if (DEMO) { demoSaved = only; return; }
-    try { localStorage.setItem(EX_KEY, JSON.stringify(only)); } catch (e) {}
-  }
-  function currentExcluded() { return J.excludedMap(DATA, loadSaved()); }
-  function excludePair(ym, name) {
-    const m = loadSaved();
-    m[ym + '|' + name] = { ym: ym, name: name, at: new Date().toISOString() };
-    saveSaved(m);
-  }
-  function restorePair(ym, name) {
-    const m = loadSaved();
-    delete m[ym + '|' + name];
-    saveSaved(m);
-  }
+  function currentExcluded() { return J.excludedMap(DATA); }
 
   function setSyncStatus(msg) { const s = $('syncStatus'); if (s) s.textContent = msg || ''; }
 
@@ -251,8 +225,7 @@
     state.stuFlowYm = null;
     state.stuView = 'list';
     state.peek = null;
-    state.confirm = null;
-    if (name === 'fee') { state.feeFilt = 'unpaid'; state.feeMonth = '__all_unpaid__'; state.q = ''; state.showExcluded = false; }
+    if (name === 'fee') { state.feeFilt = 'unpaid'; state.feeMonth = '__all_unpaid__'; state.q = ''; }
     if (name === 'months') { state.dirFilt = 'all'; state.q = ''; }
     if (name === 'bank') {
       const keys = Object.keys(DATA.monthDetails || {}).sort();
@@ -278,8 +251,6 @@
     state.feeMonth = ym;
     state.feeFilt = J.isFeeMonthOpen(ym) ? 'unpaid' : 'paid';
     state.q = '';
-    state.showExcluded = false;
-    state.confirm = null;
     applyTabUI();
     render();
   }
@@ -971,11 +942,6 @@ function minusWon(n) {
     if (!state.feeMonth) state.feeMonth = ALL;
     const ex = currentExcluded();
     const isAll = state.feeMonth === ALL;
-    let modal = '';
-    if (state.confirm) {
-      const c = state.confirm;
-      modal = '<div class="modal-bg" id="modalBg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><h3 id="modalTitle">미납에서 제외할까요?</h3><p><b style="color:var(--text)">' + esc(c.name) + '</b> · 납부대상 ' + esc(J.shortYm(c.ym)) + '<br>제외하면 이 달 미납에서 빠집니다. 이 기기에만 저장됩니다.<br>휴원이면 시트 «휴원 기록»에 이름과 월을 적으면 모든 기기에서 빠집니다.</p><div class="acts"><button type="button" class="cancel" id="cfmNo">아니요</button><button type="button" class="ok" id="cfmYes">제외할래요</button></div></div></div>';
-    }
     const groups = [];
     (DATA.billMonths || []).forEach(function (ym) {
       let list = J.unpaidVisible(DATA, ym, ex);
@@ -990,20 +956,19 @@ function minusWon(n) {
     const seg = '<div class="seg" id="segF"><button type="button" data-ym="' + ALL + '" class="' + (isAll ? 'on warn' : '') + '">미납' + (allCount ? ' ' + allCount : '') + '</button>'
       + months.map(function (ym) { return '<button type="button" data-ym="' + ym + '" class="' + (!isAll && ym === state.feeMonth ? 'on' : '') + '">' + esc(J.shortYm(ym)) + '</button>'; }).join('') + '</div>';
 
-    function unpaidRow(s, ym) {
-      return '<div class="line"><button type="button" class="peek" data-name="' + esc(s.name) + '" style="flex:1;text-align:left;border:0;background:transparent;min-height:44px"><div>' + esc(s.name) + '</div><div class="m">' + esc(s.grade || '') + ' · 예정 ' + J.won(s.expected) + '</div></button><div class="a" style="color:var(--warn);margin-right:8px">미납</div><button type="button" class="xbtn warn" data-exclude="' + esc(s.name) + '" data-ym="' + ym + '">제외</button></div>';
+    function unpaidRow(s) {
+      return '<div class="line"><button type="button" class="peek" data-name="' + esc(s.name) + '" style="flex:1;text-align:left;border:0;background:transparent;min-height:44px"><div>' + esc(s.name) + '</div><div class="m">' + esc(s.grade || '') + ' · 예정 ' + J.won(s.expected) + '</div></button><div class="a" style="color:var(--warn)">미납</div></div>';
     }
 
     if (isAll) {
       const col = C.collectionBars(J.collectionSeries(DATA, ex));
       const body = groups.length ? groups.map(function (g) {
-        return '<div class="card"><h2>' + esc(J.shortYm(g.ym)) + ' 미납 · ' + g.list.length + '명 · ' + J.won(g.total) + '</h2>' + g.list.map(function (s) { return unpaidRow(s, g.ym); }).join('') + '</div>';
+        return '<div class="card"><h2>' + esc(J.shortYm(g.ym)) + ' 미납 · ' + g.list.length + '명 · ' + J.won(g.total) + '</h2>' + g.list.map(function (s) { return unpaidRow(s); }).join('') + '</div>';
       }).join('') : '<div class="card">' + emptyBox('미납 없음') + '</div>';
       p.innerHTML = seg + '<div class="card"><h2>전체 미납</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + allCount + '명 · ' + J.won(allTotal) + '</span></div><div class="metric"><span class="n">기간</span><span class="a">' + (groups.length ? esc(J.shortYm(groups[0].ym)) + ' ~ ' + esc(J.shortYm(groups[groups.length - 1].ym)) : '—') + '</span></div></div>'
-        + collectionCard(col) + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>' + body + modal + peekHtml();
+        + collectionCard(col) + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>' + body + peekHtml();
     } else {
       const block = (DATA.tuition || {})[state.feeMonth] || { paidTotal: 0, paidCount: 0, paid: [], unpaid: [] };
-      const exList = Object.keys(ex).map(function (k) { return ex[k]; }).filter(function (x) { return x.ym === state.feeMonth && !x.session; });
       let list = state.feeFilt === 'paid' ? (block.paid || []).slice() : J.unpaidVisible(DATA, state.feeMonth, ex);
       if (state.q) {
         const q = state.q.toLowerCase();
@@ -1014,37 +979,18 @@ function minusWon(n) {
       const open = J.isFeeMonthOpen(state.feeMonth);
       p.innerHTML = seg + '<div class="card"><h2>납부대상 ' + esc(J.shortYm(state.feeMonth)) + '</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + (open ? unpaid.length + '명 · ' + J.won(unpaidAmt) : '아직 시작 전') + '</span></div><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || 0) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div></div>'
         + '<div class="filt"><button type="button" data-ff="unpaid" class="' + (state.feeFilt === 'unpaid' ? 'on warn' : '') + '">미납 ' + unpaid.length + '</button><button type="button" data-ff="paid" class="' + (state.feeFilt === 'paid' ? 'on ok' : '') + '">납부 ' + (block.paidCount || 0) + '</button></div>'
-        + (exList.length ? '<div class="excluded-bar"><span>이 달 제외 ' + exList.length + '명</span><button type="button" id="toggleEx">' + (state.showExcluded ? '숨기기' : '목록 보기') + '</button></div>' : '')
-        + (state.showExcluded && exList.length ? '<div class="card">' + exList.map(function (x) {
-          const note = x.session ? '횟수 등록 · 미납 계산 제외' : x.sheet ? '시트 휴원 기록 · 모든 기기에서 제외' : '이 기기에서 제외';
-          const btn = (!x.sheet && !x.session) ? '<button type="button" class="xbtn" data-restore="' + esc(x.name) + '">되돌리기</button>' : '';
-          return '<div class="line"><div><div>' + esc(x.name) + '</div><div class="m">' + note + '</div></div>' + btn + '</div>';
-        }).join('') + '</div>' : '')
         + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>'
         + '<div class="card">' + (list.length ? list.map(function (s) {
-          if (state.feeFilt === 'unpaid') return unpaidRow(s, state.feeMonth);
+          if (state.feeFilt === 'unpaid') return unpaidRow(s);
           return '<div class="line"><div><div>' + esc(s.name) + '</div><div class="m">' + esc(s.grade || '') + (s.day ? ' · ' + esc(s.day.slice(5)) : '') + (s.expected ? ' · 명단 ' + J.won(s.expected) : '') + '</div></div><div class="a" style="color:var(--fee)">' + J.won(s.amt) + '</div></div>';
-        }).join('') : emptyBox('해당 없음')) + '</div>' + modal + peekHtml();
+        }).join('') : emptyBox('해당 없음')) + '</div>' + peekHtml();
     }
 
     $('segF').querySelectorAll('button').forEach(function (b) {
-      b.onclick = function () { state.feeMonth = b.dataset.ym; state.q = ''; state.feeFilt = 'unpaid'; state.showExcluded = false; state.confirm = null; render(); };
+      b.onclick = function () { state.feeMonth = b.dataset.ym; state.q = ''; state.feeFilt = 'unpaid'; render(); };
     });
-    p.querySelectorAll('.filt button').forEach(function (b) { b.onclick = function () { state.feeFilt = b.dataset.ff; state.confirm = null; render(); }; });
-    const tog = $('toggleEx');
-    if (tog) tog.onclick = function () { state.showExcluded = !state.showExcluded; render(); };
+    p.querySelectorAll('.filt button').forEach(function (b) { b.onclick = function () { state.feeFilt = b.dataset.ff; render(); }; });
     p.querySelectorAll('.peek').forEach(function (b) { b.onclick = function () { openPeek(b.dataset.name); }; });
-    p.querySelectorAll('[data-exclude]').forEach(function (b) {
-      b.onclick = function (e) { e.stopPropagation(); state.confirm = { ym: b.dataset.ym || state.feeMonth, name: b.dataset.exclude }; render(); };
-    });
-    p.querySelectorAll('[data-restore]').forEach(function (b) {
-      b.onclick = function (e) { e.stopPropagation(); restorePair(state.feeMonth, b.dataset.restore); render(); };
-    });
-    if (state.confirm) {
-      $('cfmNo').onclick = function () { state.confirm = null; render(); };
-      $('cfmYes').onclick = function () { excludePair(state.confirm.ym, state.confirm.name); state.confirm = null; render(); };
-      $('modalBg').onclick = function (e) { if (e.target.id === 'modalBg') { state.confirm = null; render(); } };
-    }
     p.querySelectorAll('.nx-col-hit').forEach(function (h) {
       h.addEventListener('click', function (e) { e.stopPropagation(); goFeeMonth(h.getAttribute('data-ym')); });
     });
@@ -1130,7 +1076,7 @@ function minusWon(n) {
       flowLine = '<p class="summary-line">' + esc(J.longYmLabel(flowCh.last.ym) + ' 재원 ' + flowCh.last.enrolled + '명' + tail + '. 최근 3개월 신규 ' + flowCh.recentEntered + '명 · 퇴소 ' + flowCh.recentLeft + '명.') + '</p>';
     }
     p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '선은 재원 인원 · 누르면 월별 신규·퇴소', svg: chart.svg, legend: [
-      { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
+      { color: 'var(--fee)', label: '재원' }
     ] })
       + '<div class="card">' + flowLine + '<div class="metric"><span class="n">' + (last ? esc(J.shortYm(last.ym)) + ' 재원' : '재원') + '</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
       + '<div class="metric"><span class="n">신규</span><span class="a inc">' + (last ? last.entered + '명' : '—') + '</span></div>'
@@ -1299,11 +1245,11 @@ function minusWon(n) {
     else if (state.tab === 'fee') renderFee();
     else if (state.tab === 'students') renderStudents();
     else if (state.tab === 'bank') renderBank();
-    if (DEMO) window.__metrics = J.snapshot(DATA, loadSaved());
+    if (DEMO) window.__metrics = J.snapshot(DATA);
     window.__ready = true;
     restoreFocus();
-    if (state.confirm || state.peek) {
-      const btn = $('cfmNo') || $('peekClose');
+    if (state.peek) {
+      const btn = $('peekClose');
       if (btn) btn.focus();
     }
   }
@@ -1511,7 +1457,7 @@ function minusWon(n) {
     else syncFromSheet(false);
   };
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && (state.confirm || state.peek)) { state.confirm = null; state.peek = null; render(); }
+    if (e.key === 'Escape' && state.peek) { state.peek = null; render(); }
   });
 
   render();

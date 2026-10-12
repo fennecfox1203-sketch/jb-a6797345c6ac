@@ -522,9 +522,11 @@
       bcols.cat3 + 1, bcols.amt + 1, bcols.student + 1, bcols.grade + 1
     );
     const B = bankRaw.map(function (r) { return _pad(r || [], bankWidth); });
+    let carryYear = '';
     const bank = B.slice(hi + 1).map(function (r) {
       const row = r.slice();
       function cell(idx) { return idx >= 0 && r[idx] != null ? r[idx] : ''; }
+      function yearOf(v) { const m = /(20\d\d)/.exec(_s(v)); return m ? m[1] : ''; }
       row[BANK_CANON.day] = cell(bcols.day);
       row[BANK_CANON.memo] = cell(bcols.memo);
       row[BANK_CANON.ym] = cell(bcols.ym);
@@ -536,6 +538,16 @@
       row[BANK_CANON.grade] = cell(bcols.grade);
       row[19] = cell(monthIdx);
       row[20] = cell(yearIdx);
+      /* 병합된 셀은 첫 줄에만 연도·거래월이 있고 아래는 빈 칸이다. */
+      const yPay = yearOf(row[20]);
+      const yDay = yearOf(row[BANK_CANON.day]);
+      if (yPay) carryYear = yPay;
+      else if (yDay) carryYear = yDay;
+      if (!_s(row[20]) && /^\d{1,2}월/.test(_s(row[19]))) {
+        const y = yDay || carryYear;
+        if (y) row[20] = y;
+      }
+      if (!_ym(row[BANK_CANON.ym]) && _ym(row[BANK_CANON.day])) row[BANK_CANON.ym] = _ym(row[BANK_CANON.day]);
       row[19] = _target(row);
       return row;
     });
@@ -574,7 +586,6 @@
     ros.slice(layout.headerIndex + 1).forEach(function (r) {
       const name = _s(r[cols.name]);
       if (isRosterSkipName(name) || headerKey(r[cols.status]) === '상태') return;
-      if (!(_s(r[0]) !== '' || _s(r[cols.grade1]) || _s(r[cols.status]))) return;
       const status = _s(r[cols.status]) || '미정';
       const g1 = _s(r[cols.grade1]);
       const g2v = _s(r[cols.grade2]) !== '' ? _num(r[cols.grade2]) : null;
@@ -742,16 +753,8 @@
     };
   }
 
-  function excludedMap(data, saved) {
+  function excludedMap(data) {
     const m = {};
-    const src = saved && typeof saved === 'object' ? saved : {};
-    Object.keys(src).forEach(function (k) {
-      const v = src[k];
-      if (!v || !v.ym || !v.name) return;
-      m[v.ym + '|' + v.name] = {
-        ym: v.ym, name: v.name, at: v.at || '', sheet: false, session: false
-      };
-    });
     const sessions = {};
     sessionNames(data).forEach(function (n) { sessions[n] = 1; });
     ((data && data.restMonths) || []).forEach(function (x) {
@@ -769,7 +772,7 @@
   function unpaidVisible(data, ym, excluded) {
     if (!isFeeMonthOpen(ym)) return [];
     const block = (data.tuition || {})[ym] || { unpaid: [] };
-    const ex = excluded || excludedMap(data, {});
+    const ex = excluded || excludedMap(data);
     return (block.unpaid || []).filter(function (s) { return !ex[ym + '|' + s.name]; });
   }
 
@@ -1018,7 +1021,7 @@
 
   function collectionSeries(data, excluded) {
     const cur = currentYmSeoul();
-    const ex = excluded || excludedMap(data, {});
+    const ex = excluded || excludedMap(data);
     const yms = filterYtdYms((data.billMonths || []).filter(function (ym) { return ym <= cur; }), cur);
     return yms.map(function (ym) {
       const b = (data.tuition || {})[ym] || {};
@@ -1075,7 +1078,7 @@
 
   function salesPoints(data, excluded) {
     const cur = currentYmSeoul();
-    const ex = excluded || excludedMap(data, {});
+    const ex = excluded || excludedMap(data);
     const set = new Set((data.billMonths || []).filter(function (ym) { return ym <= cur; }));
     set.add(cur);
     return Array.from(set).sort().map(function (ym) {
@@ -1087,7 +1090,7 @@
   }
 
   function studentHistory(data, name, excluded) {
-    const ex = excluded || excludedMap(data, {});
+    const ex = excluded || excludedMap(data);
     const out = [];
     (data.billMonths || []).forEach(function (ym) {
       const block = (data.tuition || {})[ym];
@@ -1162,7 +1165,7 @@
 
   function feePoint(data, ym, excluded) {
     const b = ((data && data.tuition) || {})[ym] || {};
-    const un = unpaidVisible(data || {}, ym, excluded || excludedMap(data, {}));
+    const un = unpaidVisible(data || {}, ym, excluded || excludedMap(data || {}));
     const paid = b.paidTotal || 0;
     const unpaid = un.reduce(function (a, s) { return a + (s.expected || 0); }, 0);
     const denom = paid + unpaid;
@@ -1180,7 +1183,7 @@
   function feeChange(data, excluded) {
     const prev = prevYmSeoul();
     const before = shiftYm(prev, -1);
-    const ex = excluded || excludedMap(data, {});
+    const ex = excluded || excludedMap(data);
     const last = feePoint(data, prev, ex);
     const prior = feePoint(data, before, ex);
     return {
@@ -1265,8 +1268,8 @@
     return best;
   }
 
-  function snapshot(data, savedExcluded) {
-    const ex = excludedMap(data, savedExcluded || {});
+  function snapshot(data) {
+    const ex = excludedMap(data);
     const cur = currentYmSeoul();
     const prev = prevYmSeoul();
     const month = (data.months || []).find(function (m) { return m.ym === prev; }) || { income: 0, expense: 0, fee: 0 };

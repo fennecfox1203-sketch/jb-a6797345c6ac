@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 
 require('../ledger.js');
 require('../demo.js');
+require('../charts.js');
 
 const J = globalThis.Jangbu;
 
@@ -412,6 +413,91 @@ test('period compare and yearly rollup use whatever months the sheet has', funct
     assert.equal(flow.last.ym, '2026-09');
     assert.equal(typeof flow.recentEntered, 'number');
     assert.equal(typeof flow.recentLeft, 'number');
+  } finally {
+    J.setNow(function () { return new Date(); });
+  }
+});
+
+test('blank pay-year cells still count every named student that month', function () {
+  J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
+  try {
+    function blank(n) { return Array(n).fill(''); }
+    const head = blank(24);
+    head[0] = '날짜'; head[5] = '적요'; head[8] = '년월'; head[9] = '구분';
+    head[10] = '중분류'; head[12] = '금액'; head[16] = '대상자'; head[19] = '납부월'; head[20] = '납부년도';
+    const bank = [head];
+    const names = ['학생01', '학생02', '학생03', '학생04', '학생05', '학생06', '학생07', '학생08'];
+    ['2026-03', '2026-04', '2026-07'].forEach(function (ym) {
+      names.forEach(function (name, i) {
+        if (name === '학생07' && ym < '2026-04') return;
+        if (name === '학생08' && ym > '2026-06') return;
+        const r = blank(24);
+        r[0] = ym + '-05';
+        r[5] = name + ' 교습비';
+        r[9] = '수입';
+        r[10] = '교습비';
+        r[12] = '300000';
+        r[16] = (i % 3 === 2) ? '' : name;
+        r[19] = String(Number(ym.slice(5))) + '월';
+        r[20] = i === 0 ? ym.slice(0, 4) : '';
+        bank.push(r);
+      });
+      bank.push(blank(24));
+    });
+    const rh = blank(12);
+    rh[1] = '이름'; rh[4] = '학년'; rh[7] = '상태'; rh[8] = '교습비';
+    const roster = [blank(12), rh];
+    names.forEach(function (name, i) {
+      const r = blank(12);
+      r[1] = name;
+      if (i % 2 === 0) { r[0] = ''; r[4] = ''; r[7] = ''; }
+      else { r[0] = String(i); r[4] = '중등'; r[7] = name === '학생08' ? '퇴소' : '재학'; r[8] = '300000'; }
+      roster.push(r);
+    });
+    const nd = J.buildLedger(rowsFrom(bank), rowsFrom(roster));
+    assert.ok(stu(nd, '학생01'));
+    assert.equal(stu(nd, '학생01').status, '미정');
+    const flow = {};
+    J.flowSeries(nd).forEach(function (p) { flow[p.ym] = p; });
+    assert.equal(flow['2026-03'].enrolled, 5);
+    assert.equal(flow['2026-04'].enrolled, 6);
+    assert.equal(flow['2026-04'].entered, 1);
+    assert.equal(flow['2026-05'].left, 1);
+    assert.equal(flow['2026-07'].enrolled, 5);
+    assert.equal(flow['2026-07'].left, 0);
+    assert.equal(nd.tuition['2026-03'].paidCount, 5);
+  } finally {
+    J.setNow(function () { return new Date(); });
+  }
+});
+
+test('a month with nobody paying does not pull the average line to zero', function () {
+  J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
+  try {
+    const src = globalThis.buildDemoSource();
+    const nd = J.buildLedger(src.bank, src.roster);
+    const july = J.arpuSeries(nd).find(function (p) { return p.ym === '2026-07'; });
+    assert.equal(july.count, 0);
+    const svg = globalThis.Charts.arpuChart(J.arpuSeries(nd)).svg;
+    assert.equal((svg.match(/<polyline /g) || []).length, 4);
+    assert.equal(svg.indexOf('>0.0<'), -1);
+  } finally {
+    J.setNow(function () { return new Date(); });
+  }
+});
+
+test('a device exclusion list does not change unpaid counts', function () {
+  J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
+  try {
+    const src = globalThis.buildDemoSource();
+    const nd = J.buildLedger(src.bank, src.roster);
+    const plain = J.unpaidVisible(nd, '2026-09', J.excludedMap(nd)).map(function (s) { return s.name; });
+    assert.ok(plain.length > 0);
+    const name = plain[0];
+    const saved = {};
+    saved['2026-09|' + name] = { ym: '2026-09', name: name };
+    const ignored = J.unpaidVisible(nd, '2026-09', J.excludedMap(nd, saved)).map(function (s) { return s.name; });
+    assert.deepEqual(ignored, plain);
   } finally {
     J.setNow(function () { return new Date(); });
   }
