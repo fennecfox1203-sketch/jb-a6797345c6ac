@@ -218,6 +218,19 @@
     return -1;
   }
 
+  /* 동의어 순서대로 찾는다. 대상자 열이 성명보다 앞에 없어도 대상자를 먼저 고른다. */
+  function findHeaderColPreferred(header, names) {
+    const h = header || [];
+    const want = (names || []).map(headerKey);
+    for (let n = 0; n < want.length; n++) {
+      if (!want[n]) continue;
+      for (let i = 0; i < h.length; i++) {
+        if (headerKey(h[i]) === want[n]) return i;
+      }
+    }
+    return -1;
+  }
+
   function missingHeaderError(sheet, label) {
     const err = new Error(sheet + '에서 ‘' + label + '’ 열을 찾지 못했어요.');
     err.code = 'missing-header';
@@ -227,7 +240,7 @@
   }
 
   const ROSTER_FIELDS = [
-    { key: 'name', label: '이름', fallback: 1, synonyms: ['이름', '성명', '학생명', '학생이름'] },
+    { key: 'name', label: '이름', fallback: 1, synonyms: ['이름', '성명', '성함', '학생명', '학생이름'] },
     { key: 'grade1', label: '학년1', fallback: 4, synonyms: ['학년1', '학년', '학교급'] },
     { key: 'grade2', label: '학년2', fallback: 5, synonyms: ['학년2', '학년수', '상세학년'] },
     { key: 'status', label: '상태', fallback: 7, synonyms: ['상태', '재학상태', '재원상태'] },
@@ -242,7 +255,22 @@
     label: '납부년도', fallback: 20, sheet: '통장거래내역',
     synonyms: ['납부년', '납부년도', '납부연도', '년도', '연도']
   };
+  const BANK_FIELDS = [
+    { key: 'day', label: '날짜', fallback: 0, sheet: '통장거래내역', synonyms: ['날짜', '거래일', '거래일자', '일자', '승인일', '승인일자'] },
+    { key: 'memo', label: '적요', fallback: 5, sheet: '통장거래내역', synonyms: ['적요', '내용', '메모', '거래내용', '통장적요'] },
+    { key: 'ym', label: '거래월', fallback: 8, sheet: '통장거래내역', synonyms: ['거래월', '년월', '기준월', '귀속월'] },
+    { key: 'dir', label: '구분', fallback: 9, sheet: '통장거래내역', synonyms: ['구분', '수입지출', '입출', '유형'] },
+    { key: 'cat2', label: '중분류', fallback: 10, sheet: '통장거래내역', synonyms: ['중분류', '분류'] },
+    { key: 'cat3', label: '소분류', fallback: 11, sheet: '통장거래내역', synonyms: ['소분류', '세부분류', '상세분류'] },
+    { key: 'amt', label: '금액', fallback: 12, sheet: '통장거래내역', synonyms: ['금액', '거래금액', '입출금액'] },
+    { key: 'student', label: '대상자', fallback: 16, sheet: '통장거래내역', synonyms: ['대상자', '학생명', '학생이름', '성명', '학생'] },
+    { key: 'grade', label: '학년', fallback: 17, sheet: '통장거래내역', synonyms: ['학년'] }
+  ];
+  const BANK_CANON = { day: 0, memo: 5, ym: 8, dir: 9, cat2: 10, cat3: 11, amt: 12, student: 16, grade: 17 };
+  const BANK_DECOY = ['번호', '순번', '잔액', '잔고', '비고', '참고', '기타', '대분류'];
   const BANK_CONFLICTS = ['대상자', '금액', '적요', '내용', '날짜', '거래일', '거래일자', '구분', '수입지출', '대분류', '중분류', '소분류', '분류', '학년'];
+  const SESSION_MARKS = ['횟수', '횟수제', '횟수등록', '회차', '회차등록', '세션'];
+  const PAY_TYPE_HEADERS = ['납부방식', '결제방식', '수강형태', '등록형태'];
 
   function rosterConflicts(field) {
     const out = ROSTER_EXTRA_CONFLICTS.map(headerKey);
@@ -273,6 +301,87 @@
     return field.fallback;
   }
 
+  function bankFieldConflicts(field) {
+    const out = BANK_DECOY.map(headerKey);
+    BANK_FIELDS.forEach(function (other) {
+      if (other.key === field.key) return;
+      other.synonyms.forEach(function (s) { out.push(headerKey(s)); });
+    });
+    PAY_MONTH_FIELD.synonyms.forEach(function (s) { out.push(headerKey(s)); });
+    PAY_YEAR_FIELD.synonyms.forEach(function (s) { out.push(headerKey(s)); });
+    return out;
+  }
+
+  function pickBankColumn(header, field, used) {
+    const want = field.synonyms.map(headerKey);
+    let idx = -1;
+    for (let n = 0; n < want.length && idx < 0; n++) {
+      if (!want[n]) continue;
+      for (let i = 0; i < (header || []).length; i++) {
+        if (used[i]) continue;
+        if (headerKey(header[i]) === want[n]) { idx = i; break; }
+      }
+    }
+    if (idx >= 0) return idx;
+    if (used[field.fallback]) throw missingHeaderError('통장거래내역', field.label);
+    const cell = header && field.fallback < header.length ? header[field.fallback] : '';
+    const fbKey = headerKey(cell);
+    if (fbKey && bankFieldConflicts(field).indexOf(fbKey) >= 0) {
+      throw missingHeaderError('통장거래내역', field.label);
+    }
+    return field.fallback;
+  }
+
+  function bankHeaderScore(row) {
+    const who = findHeaderColPreferred(row, (BANK_FIELDS.find(function (f) { return f.key === 'student'; }) || {}).synonyms || []);
+    if (who < 0) return 0;
+    let n = 1;
+    BANK_FIELDS.forEach(function (f) {
+      if (f.key === 'student') return;
+      if (findHeaderColPreferred(row, f.synonyms) >= 0) n++;
+    });
+    if (findHeaderCol(row, PAY_MONTH_FIELD.synonyms) >= 0) n++;
+    if (findHeaderCol(row, PAY_YEAR_FIELD.synonyms) >= 0) n++;
+    return n;
+  }
+
+  function findBankHeaderIndex(rows) {
+    let best = -1;
+    let bestScore = 0;
+    for (let i = 0; i < (rows || []).length; i++) {
+      const sc = bankHeaderScore(rows[i] || []);
+      if (sc > bestScore) { best = i; bestScore = sc; }
+    }
+    return best;
+  }
+
+  function isSessionMark(v) {
+    const k = headerKey(v);
+    return !!k && SESSION_MARKS.map(headerKey).indexOf(k) >= 0;
+  }
+
+  function isSessionStudent(st) {
+    if (!st) return false;
+    if (PER_SESSION.indexOf(st.name) >= 0) return true;
+    return isSessionMark(st.status) || isSessionMark(st.payType);
+  }
+
+  function sessionNames(data) {
+    const seen = {};
+    const out = [];
+    function add(n) {
+      const name = _s(n);
+      if (!name || seen[name]) return;
+      seen[name] = 1;
+      out.push(name);
+    }
+    PER_SESSION.forEach(add);
+    ((data && data.students) || []).forEach(function (st) {
+      if (isSessionStudent(st)) add(st.name);
+    });
+    return out;
+  }
+
   function rosterHeaderScore(row) {
     let n = 0;
     let hasName = false;
@@ -296,6 +405,7 @@
     if (best < 0) {
       const cols = {};
       ROSTER_FIELDS.forEach(function (f) { cols[f.key] = f.fallback; });
+      cols.payType = -1;
       return { headerIndex: 0, cols: cols };
     }
     const header = list[best];
@@ -303,6 +413,7 @@
     ROSTER_FIELDS.forEach(function (f) {
       cols[f.key] = pickColumn(header, f, rosterConflicts(f));
     });
+    cols.payType = findHeaderCol(header, PAY_TYPE_HEADERS);
     return { headerIndex: best, cols: cols };
   }
 
@@ -391,26 +502,46 @@
 
   function buildLedger(bankRows, rosRows) {
     const bankRaw = bankRows || [];
-    let hi = -1;
-    for (let i = 0; i < bankRaw.length; i++) {
-      if (findHeaderCol(bankRaw[i], ['대상자']) >= 0) { hi = i; break; }
-    }
+    const hi = findBankHeaderIndex(bankRaw);
     if (hi < 0) throw missingHeaderError('통장거래내역', '대상자');
     const bankHeader = bankRaw[hi] || [];
+    const used = {};
+    const bcols = {};
+    BANK_FIELDS.forEach(function (f) {
+      bcols[f.key] = pickBankColumn(bankHeader, f, used);
+      used[bcols[f.key]] = f.key;
+    });
     const monthIdx = pickColumn(bankHeader, PAY_MONTH_FIELD, bankConflicts(PAY_MONTH_FIELD));
+    if (used[monthIdx]) throw missingHeaderError('통장거래내역', PAY_MONTH_FIELD.label);
+    used[monthIdx] = 'month';
     const yearIdx = pickColumn(bankHeader, PAY_YEAR_FIELD, bankConflicts(PAY_YEAR_FIELD));
-    const bankWidth = Math.max(sheetWidth(bankRaw, 30), monthIdx + 1, yearIdx + 1);
+    if (used[yearIdx]) throw missingHeaderError('통장거래내역', PAY_YEAR_FIELD.label);
+    const bankWidth = Math.max(
+      sheetWidth(bankRaw, 30), monthIdx + 1, yearIdx + 1,
+      bcols.day + 1, bcols.memo + 1, bcols.ym + 1, bcols.dir + 1, bcols.cat2 + 1,
+      bcols.cat3 + 1, bcols.amt + 1, bcols.student + 1, bcols.grade + 1
+    );
     const B = bankRaw.map(function (r) { return _pad(r || [], bankWidth); });
     const bank = B.slice(hi + 1).map(function (r) {
       const row = r.slice();
-      if (monthIdx !== 19) row[19] = r[monthIdx] == null ? '' : r[monthIdx];
-      if (yearIdx !== 20) row[20] = r[yearIdx] == null ? '' : r[yearIdx];
+      function cell(idx) { return idx >= 0 && r[idx] != null ? r[idx] : ''; }
+      row[BANK_CANON.day] = cell(bcols.day);
+      row[BANK_CANON.memo] = cell(bcols.memo);
+      row[BANK_CANON.ym] = cell(bcols.ym);
+      row[BANK_CANON.dir] = cell(bcols.dir);
+      row[BANK_CANON.cat2] = cell(bcols.cat2);
+      row[BANK_CANON.cat3] = cell(bcols.cat3);
+      row[BANK_CANON.amt] = cell(bcols.amt);
+      row[BANK_CANON.student] = cell(bcols.student);
+      row[BANK_CANON.grade] = cell(bcols.grade);
+      row[19] = cell(monthIdx);
+      row[20] = cell(yearIdx);
       row[19] = _target(row);
       return row;
     });
     const layout = resolveRoster(rosRows || []);
     const cols = layout.cols;
-    const rosWidth = Math.max(sheetWidth(rosRows, 30), cols.name + 1, cols.grade1 + 1, cols.grade2 + 1, cols.status + 1, cols.tuition + 1);
+    const rosWidth = Math.max(sheetWidth(rosRows, 30), cols.name + 1, cols.grade1 + 1, cols.grade2 + 1, cols.status + 1, cols.tuition + 1, cols.payType >= 0 ? cols.payType + 1 : 0);
     const ros = (rosRows || []).map(function (r) { return _pad(r || [], rosWidth); });
     const header = ros[layout.headerIndex] || [];
     const schoolIdx = findHeaderCol(header, ['학교', '학교명']);
@@ -450,6 +581,7 @@
       const grade = (g1 + (g2v != null ? ' ' + g2v : '')).trim();
       const bucket = ['재학', '휴원', '퇴소'].indexOf(status) >= 0 ? status : '기타';
       const st = { name: name, grade1: g1, grade2: g2v, grade: grade, status: status, tuition: _num(r[cols.tuition]), bucket: bucket };
+      if (cols.payType >= 0 && _s(r[cols.payType])) st.payType = _s(r[cols.payType]);
       if (schoolIdx >= 0 && _s(r[schoolIdx])) st.school = _s(r[schoolIdx]);
       if (addrIdx >= 0 && _s(r[addrIdx])) st.address = _s(r[addrIdx]);
       students.push(st);
@@ -620,12 +752,14 @@
         ym: v.ym, name: v.name, at: v.at || '', sheet: false, session: false
       };
     });
+    const sessions = {};
+    sessionNames(data).forEach(function (n) { sessions[n] = 1; });
     ((data && data.restMonths) || []).forEach(function (x) {
-      if (!x || !x.ym || !x.name || PER_SESSION.indexOf(x.name) >= 0) return;
+      if (!x || !x.ym || !x.name || sessions[x.name]) return;
       m[x.ym + '|' + x.name] = { ym: x.ym, name: x.name, sheet: true };
     });
     Object.keys((data && data.tuition) || {}).forEach(function (ym) {
-      PER_SESSION.forEach(function (n) {
+      Object.keys(sessions).forEach(function (n) {
         m[ym + '|' + n] = { ym: ym, name: n, sheet: true, session: true };
       });
     });
@@ -651,7 +785,7 @@
       return new Set((((data.tuition[ym] || {}).paid) || []).map(function (x) { return x && x.name; }).filter(Boolean));
     });
     const gone = new Set((data.students || []).filter(function (x) { return x && x.bucket === '퇴소'; }).map(function (x) { return x.name; }));
-    const session = new Set(PER_SESSION);
+    const session = new Set(sessionNames(data));
     const pv = prevYmSeoul();
     let lastIdx = yms.length - 1;
     while (lastIdx > 0 && yms[lastIdx] > pv) lastIdx--;
@@ -975,6 +1109,162 @@
     return out.reverse();
   }
 
+  function shiftYm(ym, delta) {
+    let y = Number(String(ym || '').slice(0, 4));
+    let m = Number(String(ym || '').slice(5));
+    if (!y || !m) return '';
+    m += delta;
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    return y + '-' + String(m).padStart(2, '0');
+  }
+
+  function monthNet(m) {
+    if (!m) return null;
+    const income = Number(m.income) || 0;
+    const expense = Number(m.expense) || 0;
+    return { ym: m.ym, income: income, expense: expense, net: income - expense, fee: Number(m.fee) || 0 };
+  }
+
+  function yearRollup(data) {
+    const by = {};
+    ((data && data.months) || []).forEach(function (m) {
+      const y = String(m.ym || '').slice(0, 4);
+      if (!/^\d{4}$/.test(y)) return;
+      if (!by[y]) by[y] = { year: y, income: 0, expense: 0, fee: 0, months: 0 };
+      by[y].income += Number(m.income) || 0;
+      by[y].expense += Number(m.expense) || 0;
+      by[y].fee += Number(m.fee) || 0;
+      by[y].months += 1;
+    });
+    return Object.keys(by).sort().map(function (y) {
+      const r = by[y];
+      r.net = r.income - r.expense;
+      r.avgNet = r.months ? Math.round(r.net / r.months) : 0;
+      r.avgIncome = r.months ? Math.round(r.income / r.months) : 0;
+      r.avgExpense = r.months ? Math.round(r.expense / r.months) : 0;
+      return r;
+    });
+  }
+
+  function periodCompare(data) {
+    const prev = prevYmSeoul();
+    const map = {};
+    ((data && data.months) || []).forEach(function (m) { if (m && m.ym) map[m.ym] = m; });
+    return {
+      prev: prev,
+      current: monthNet(map[prev]),
+      mom: monthNet(map[shiftYm(prev, -1)]),
+      yoy: monthNet(map[shiftYm(prev, -12)]),
+      years: yearRollup(data)
+    };
+  }
+
+  function feePoint(data, ym, excluded) {
+    const b = ((data && data.tuition) || {})[ym] || {};
+    const un = unpaidVisible(data || {}, ym, excluded || excludedMap(data, {}));
+    const paid = b.paidTotal || 0;
+    const unpaid = un.reduce(function (a, s) { return a + (s.expected || 0); }, 0);
+    const denom = paid + unpaid;
+    return {
+      ym: ym,
+      paid: paid,
+      unpaid: unpaid,
+      paidCount: b.paidCount || 0,
+      unpaidCount: un.length,
+      rate: denom ? Math.round(paid / denom * 1000) / 10 : 0,
+      open: isFeeMonthOpen(ym)
+    };
+  }
+
+  function feeChange(data, excluded) {
+    const prev = prevYmSeoul();
+    const before = shiftYm(prev, -1);
+    const ex = excluded || excludedMap(data, {});
+    const last = feePoint(data, prev, ex);
+    const prior = feePoint(data, before, ex);
+    return {
+      last: last,
+      prev: prior,
+      rateDelta: Math.round((last.rate - prior.rate) * 10) / 10,
+      countDelta: last.unpaidCount - prior.unpaidCount
+    };
+  }
+
+  function flowChange(data) {
+    const pts = flowSeries(data);
+    if (!pts.length) return null;
+    const last = pts[pts.length - 1];
+    const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+    const recent = pts.slice(-3);
+    return {
+      last: last,
+      prev: prev,
+      enrolledDelta: prev ? last.enrolled - prev.enrolled : null,
+      recentEntered: recent.reduce(function (a, p) { return a + p.entered; }, 0),
+      recentLeft: recent.reduce(function (a, p) { return a + p.left; }, 0)
+    };
+  }
+
+  function decodeBasicEntities(s) {
+    return String(s || '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .trim();
+  }
+
+  function parseSheetTitles(html) {
+    const out = [];
+    const re = /docs-sheet-tab-caption">([^<]*)</g;
+    const src = String(html || '');
+    let m;
+    while ((m = re.exec(src))) {
+      const name = decodeBasicEntities(m[1]);
+      if (name && out.indexOf(name) < 0) out.push(name);
+    }
+    return out;
+  }
+
+  function sheetTitleVariants(name) {
+    const raw = _s(name);
+    const compact = raw.replace(/\s+/g, '');
+    const out = [];
+    function add(s) { if (s && out.indexOf(s) < 0) out.push(s); }
+    add(raw);
+    add(compact);
+    const spaced = {
+      '학생명단': ['학생 명단'],
+      '통장거래내역': ['통장 거래내역', '통장거래 내역'],
+      '휴원기록': ['휴원 기록']
+    };
+    (spaced[compact] || []).forEach(add);
+    return out;
+  }
+
+  function pickSheetTitle(titles, want) {
+    const key = headerKey(want);
+    if (!key) return '';
+    let best = '';
+    let bestScore = 0;
+    (titles || []).forEach(function (raw) {
+      const t = _s(raw);
+      const k = headerKey(t);
+      if (!k) return;
+      let score = 0;
+      if (k === key) score = 1000;
+      else if (k.indexOf(key) === 0 || key.indexOf(k) === 0) {
+        const shorter = Math.min(k.length, key.length);
+        const longer = Math.max(k.length, key.length);
+        if (shorter >= 2 && shorter / longer >= 0.5) score = shorter;
+      }
+      if (score > bestScore) { bestScore = score; best = t; }
+    });
+    return best;
+  }
+
   function snapshot(data, savedExcluded) {
     const ex = excludedMap(data, savedExcluded || {});
     const cur = currentYmSeoul();
@@ -1070,6 +1360,14 @@
     feeSales: feeSales,
     salesPoints: salesPoints,
     studentHistory: studentHistory,
-    snapshot: snapshot
+    snapshot: snapshot,
+    yearRollup: yearRollup,
+    periodCompare: periodCompare,
+    feeChange: feeChange,
+    flowChange: flowChange,
+    parseSheetTitles: parseSheetTitles,
+    sheetTitleVariants: sheetTitleVariants,
+    pickSheetTitle: pickSheetTitle,
+    isSessionStudent: isSessionStudent
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
