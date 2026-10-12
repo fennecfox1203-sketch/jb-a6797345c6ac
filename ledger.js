@@ -208,6 +208,17 @@
       .toLowerCase();
   }
 
+  /* 시트 상태칸. 재원/재학, 휴원/휴학, 퇴소/퇴원과 앞뒤 설명(휴원중, 퇴소함)을 같은 묶음으로 본다.
+     예전에는 '재학','휴원','퇴소'와 글자가 완전히 같을 때만 묶어서, '재원'이나 '휴원중'은 기타가 됐다. */
+  function statusBucket(raw) {
+    const k = headerKey(raw);
+    if (!k) return '기타';
+    if (k.indexOf('퇴소') >= 0 || k.indexOf('퇴원') >= 0) return '퇴소';
+    if (k.indexOf('휴원') >= 0 || k.indexOf('휴학') >= 0) return '휴원';
+    if (k.indexOf('재원') >= 0 || k.indexOf('재학') >= 0 || k.indexOf('재적') >= 0) return '재학';
+    return '기타';
+  }
+
   function findHeaderCol(header, names) {
     const want = (names || []).map(headerKey);
     const h = header || [];
@@ -619,7 +630,7 @@
       const g1 = _s(r[cols.grade1]);
       const g2v = _s(r[cols.grade2]) !== '' ? _num(r[cols.grade2]) : null;
       const grade = (g1 + (g2v != null ? ' ' + g2v : '')).trim();
-      const bucket = ['재학', '휴원', '퇴소'].indexOf(status) >= 0 ? status : '기타';
+      const bucket = statusBucket(status);
       const st = { name: name, grade1: g1, grade2: g2v, grade: grade, status: status, tuition: _num(r[cols.tuition]), bucket: bucket };
       if (cols.payType >= 0 && _s(r[cols.payType])) st.payType = _s(r[cols.payType]);
       if (schoolIdx >= 0 && _s(r[schoolIdx])) st.school = _s(r[schoolIdx]);
@@ -860,22 +871,81 @@
     return out;
   }
 
+  function sortNames(list) {
+    return list.sort(function (a, b) { return String(a).localeCompare(String(b), 'ko'); });
+  }
+
+  /* 월별 휴원·퇴소 인원. 재원(roster)에 있는 달은 빼서 한 학생이 두 선에 동시에 들어가지 않는다.
+     휴원 기록은 그달 명단이고, 상태만 휴원·퇴소인 학생은 마지막 재원 다음 달부터 센다.
+     납부 이력이 없으면 과거를 만들지 않고 보이는 마지막 달에만 넣는다.
+     이름은 시트에 있는 것을 쓰므로 명단이 바뀌어도 같은 규칙으로 센다. */
+  function statusHeads(data, shown, roster) {
+    const restBy = {};
+    ((data && data.restMonths) || []).forEach(function (x) {
+      if (!x || !x.ym || !x.name) return;
+      (restBy[x.ym] = restBy[x.ym] || new Set()).add(x.name);
+    });
+    const kindOf = {};
+    ((data && data.students) || []).forEach(function (st) {
+      if (!st || !st.name || kindOf[st.name]) return;
+      kindOf[st.name] = statusBucket(st.status || st.bucket || '');
+    });
+    const lastEnrolled = {};
+    Object.keys(roster || {}).sort().forEach(function (ym) {
+      (roster[ym] || new Set()).forEach(function (n) { lastEnrolled[n] = ym; });
+    });
+    const lastShown = shown.length ? shown[shown.length - 1] : '';
+    return shown.map(function (ym) {
+      const enr = (roster && roster[ym]) || new Set();
+      const rest = restBy[ym] || new Set();
+      const leave = new Set();
+      const gone = new Set();
+      const seen = {};
+      function consider(n) {
+        if (!n || seen[n] || enr.has(n)) return;
+        seen[n] = 1;
+        const kind = kindOf[n] || '';
+        const last = lastEnrolled[n] || '';
+        if (rest.has(n)) { leave.add(n); return; }
+        const after = last ? ym > last : ym === lastShown;
+        if (!after) return;
+        if (kind === '휴원') leave.add(n);
+        else if (kind === '퇴소') gone.add(n);
+      }
+      Object.keys(kindOf).forEach(consider);
+      rest.forEach(consider);
+      return {
+        onLeave: leave.size,
+        withdrawn: gone.size,
+        onLeaveNames: sortNames(Array.from(leave)),
+        withdrawnNames: sortNames(Array.from(gone))
+      };
+    });
+  }
+
   function flowSeries(data) {
     const roster = rosterMap(data);
     const yms = Object.keys(roster).sort();
     const prevCut = prevYmSeoul();
-    return yms.filter(function (ym) { return ym <= prevCut; }).map(function (ym) {
+    const shown = yms.filter(function (ym) { return ym <= prevCut; });
+    const heads = statusHeads(data, shown, roster);
+    return shown.map(function (ym, idx) {
       const i = yms.indexOf(ym);
       const prev = i > 0 ? yms[i - 1] : null;
       const entered = prev ? namesDelta(roster[prev], roster[ym], 'enter') : [];
       const left = prev ? namesDelta(roster[prev], roster[ym], 'leave') : [];
+      const head = heads[idx] || { onLeave: 0, withdrawn: 0, onLeaveNames: [], withdrawnNames: [] };
       return {
         ym: ym,
         enrolled: roster[ym].size,
         entered: entered.length,
         left: left.length,
         enteredNames: entered,
-        leftNames: left
+        leftNames: left,
+        onLeave: head.onLeave,
+        withdrawn: head.withdrawn,
+        onLeaveNames: head.onLeaveNames,
+        withdrawnNames: head.withdrawnNames
       };
     });
   }
@@ -1377,6 +1447,7 @@
     unpaidVisible: unpaidVisible,
     rosterMap: rosterMap,
     flowSeries: flowSeries,
+    statusBucket: statusBucket,
     monthParts: monthParts,
     cashSeries: cashSeries,
     effectiveGrade: effectiveGrade,

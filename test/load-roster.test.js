@@ -589,3 +589,210 @@ test('a device exclusion list does not change unpaid counts', function () {
     J.setNow(function () { return new Date(); });
   }
 });
+
+test('status wording still lands in 재원, 휴원, or 퇴소', function () {
+  assert.equal(J.statusBucket('재학'), '재학');
+  assert.equal(J.statusBucket('재원'), '재학');
+  assert.equal(J.statusBucket('재원중'), '재학');
+  assert.equal(J.statusBucket(' 재적 '), '재학');
+  assert.equal(J.statusBucket('휴원'), '휴원');
+  assert.equal(J.statusBucket('휴원(장기)'), '휴원');
+  assert.equal(J.statusBucket('휴학'), '휴원');
+  assert.equal(J.statusBucket('퇴소함'), '퇴소');
+  assert.equal(J.statusBucket('퇴원'), '퇴소');
+  assert.equal(J.statusBucket('미정'), '기타');
+  assert.equal(J.statusBucket(''), '기타');
+});
+
+test('monthly 휴원 and 퇴소 follow the sheet, not a fixed roster', function () {
+  J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
+  try {
+    function fee(ym, name) {
+      const r = blank(24);
+      r[0] = ym + '-05';
+      r[5] = name + ' 교습비';
+      r[8] = ym;
+      r[9] = '수입';
+      r[10] = '교습비';
+      r[12] = '100000';
+      r[16] = name;
+      r[19] = ym + '-01';
+      return r;
+    }
+    const head = blank(24);
+    head[16] = '대상자';
+    const bank = [head];
+    ['2026-05', '2026-07', '2026-08'].forEach(function (ym) { bank.push(fee(ym, '가나')); });
+    bank.push(fee('2026-05', '다라'));
+    bank.push(fee('2026-03', '마바'));
+    function roster(rows) {
+      return rowsFrom([['이름', '상태', '교습비']].concat(rows));
+    }
+    const nd = J.buildLedger(rowsFrom(bank), roster([
+      ['다라', '퇴소함', '100000'],
+      ['가나', '재원', '100000'],
+      ['마바', '휴원중', '100000']
+    ]));
+    assert.equal(stu(nd, '다라').bucket, '퇴소');
+    assert.equal(stu(nd, '가나').bucket, '재학');
+    assert.equal(stu(nd, '마바').bucket, '휴원');
+    nd.restMonths = [{ name: '가나', ym: '2026-06' }, { name: '임시10', ym: '2026-07' }];
+    const flow = {};
+    J.flowSeries(nd).forEach(function (p) { flow[p.ym] = p; });
+    assert.equal(flow['2026-05'].withdrawn, 0);
+    assert.ok(flow['2026-05'].onLeaveNames.indexOf('마바') >= 0);
+    assert.equal(flow['2026-06'].enrolled, 0);
+    assert.deepEqual(flow['2026-06'].onLeaveNames, ['가나', '마바']);
+    assert.deepEqual(flow['2026-06'].withdrawnNames, ['다라']);
+    assert.ok(flow['2026-07'].onLeaveNames.indexOf('임시10') >= 0);
+    assert.ok(flow['2026-07'].onLeaveNames.indexOf('마바') >= 0);
+    assert.deepEqual(flow['2026-08'].withdrawnNames, ['다라']);
+    assert.ok(flow['2026-08'].onLeaveNames.indexOf('다라') < 0);
+    const dropped = J.buildLedger(rowsFrom(bank), roster([
+      ['가나', '재원', '100000']
+    ]));
+    dropped.restMonths = [];
+    const later = {};
+    J.flowSeries(dropped).forEach(function (p) { later[p.ym] = p; });
+    assert.equal(later['2026-08'].withdrawn, 0);
+    assert.equal(later['2026-08'].onLeave, 0);
+    assert.ok(later['2026-08'].enrolled >= 1);
+  } finally {
+    J.setNow(function () { return new Date(); });
+  }
+});
+
+function svgTexts(svg) {
+  const out = [];
+  const re = /<text\b([^>]*)>([^<]*)<\/text>/g;
+  let m;
+  while ((m = re.exec(svg))) {
+    const a = m[1];
+    const x = /(?:^|\s)x="([^"]+)"/.exec(a);
+    const y = /(?:^|\s)y="([^"]+)"/.exec(a);
+    const fs = /font-size="([^"]+)"/.exec(a);
+    const anc = /text-anchor="([^"]+)"/.exec(a);
+    if (!x || !y) continue;
+    out.push({
+      x: Number(x[1]),
+      y: Number(y[1]),
+      fs: Number(fs ? fs[1] : 12),
+      anchor: anc ? anc[1] : 'start',
+      text: m[2],
+      series: (/data-series="([^"]+)"/.exec(a) || [])[1] || '',
+      role: (/data-role="([^"]+)"/.exec(a) || [])[1] || ''
+    });
+  }
+  return out;
+}
+
+function textBoxes(list) {
+  return list.map(function (t) {
+    let w = 0;
+    for (let i = 0; i < t.text.length; i++) {
+      const c = t.text.charCodeAt(i);
+      if (c > 255) w += t.fs * 0.95;
+      else if (c === 45 || c === 43 || c === 46) w += t.fs * 0.4;
+      else w += t.fs * 0.6;
+    }
+    w += t.fs * 0.15;
+    const left = t.anchor === 'end' ? t.x - w : t.anchor === 'start' ? t.x : t.x - w / 2;
+    return { left: left, top: t.y - t.fs * 0.8, right: left + w, bottom: t.y + t.fs * 0.2, text: t.text };
+  });
+}
+
+function assertNoTextOverlap(svg, title) {
+  const boxes = textBoxes(svgTexts(svg));
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      const hit = a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+      assert.equal(hit, false, title + ' ' + a.text + ' overlaps ' + b.text);
+    }
+  }
+}
+
+test('income and expense numbers sit on every month without overlap', function () {
+  J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
+  try {
+    const src = globalThis.buildDemoSource();
+    const nd = J.buildLedger(src.bank, src.roster);
+    const home = nd.months.filter(function (m) { return m.ym <= '2026-09'; }).slice(-9);
+    const svg = globalThis.Charts.monthsLine(home, { summary: true }).svg;
+    assert.match(svg, /width="\d+/);
+    const texts = svgTexts(svg);
+    const income = texts.filter(function (t) { return t.series === 'income'; });
+    const expense = texts.filter(function (t) { return t.series === 'expense'; });
+    assert.equal(income.length, home.length);
+    assert.equal(expense.length, home.length);
+    assert.ok(income.every(function (t) { return t.fs >= 15; }));
+    const circles = [];
+    const re = /<circle cx="([^"]+)" cy="([^"]+)"/g;
+    let m;
+    while ((m = re.exec(svg))) circles.push({ x: Number(m[1]), y: Number(m[2]) });
+    const incC = circles.slice(0, home.length);
+    const expC = circles.slice(home.length, home.length * 2);
+    income.forEach(function (t) {
+      const c = incC.find(function (p) { return Math.abs(p.x - t.x) < 0.3; });
+      assert.ok(c && t.y < c.y - 4, 'income label above its point');
+    });
+    expense.forEach(function (t) {
+      const c = expC.find(function (p) { return Math.abs(p.x - t.x) < 0.3; });
+      assert.ok(c && t.y > c.y + 4, 'expense label below its point');
+    });
+    assert.equal((svg.match(/<rect /g) || []).length, home.length);
+    assertNoTextOverlap(svg, 'months');
+    assertNoTextOverlap(globalThis.Charts.monthsLine(nd.months, { summary: false }).svg, 'months detail');
+  } finally {
+    J.setNow(function () { return new Date(); });
+  }
+});
+
+test('year bars separate the zero tick and label every series', function () {
+  const svg = globalThis.Charts.yearBars([
+    { year: '2024', income: 40000000, expense: 42000000, net: -1840000 },
+    { year: '2025', income: 12000000, expense: 8000000, net: 4000000 }
+  ]).svg;
+  const texts = svgTexts(svg);
+  const ticks = texts.filter(function (t) { return t.role === 'tick'; });
+  const zero = ticks.find(function (t) { return t.text === '0'; });
+  const neg = ticks.find(function (t) { return t.text.charAt(0) === '-'; });
+  assert.ok(zero && neg);
+  assert.ok(neg.y - zero.y >= 20, 'zero and negative tick are apart');
+  ['income', 'expense', 'net'].forEach(function (key) {
+    assert.equal(texts.filter(function (t) { return t.series === key; }).length, 2, key);
+  });
+  const net = texts.find(function (t) { return t.series === 'net' && t.text.charAt(0) === '-'; });
+  assert.ok(net && net.y > zero.y + 8, 'negative net sits below zero');
+  assertNoTextOverlap(svg, 'year');
+});
+
+test('student chart draws 재원, 휴원, and 퇴소 and labels do not collide', function () {
+  J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
+  try {
+    const src = globalThis.buildDemoSource();
+    const nd = J.buildLedger(src.bank, src.roster);
+    nd.restMonths = J.parseRestRows(src.rest);
+    const pts = J.flowSeries(nd).slice(-9);
+    const svg = globalThis.Charts.enrollBars(pts, { summary: true }).svg;
+    const texts = svgTexts(svg);
+    ['enrolled', 'onLeave', 'withdrawn'].forEach(function (key) {
+      assert.equal(texts.filter(function (t) { return t.series === key; }).length, pts.length, key);
+    });
+    assert.ok((svg.match(/<polyline /g) || []).length >= 6);
+    assertNoTextOverlap(svg, 'enroll');
+    assertNoTextOverlap(globalThis.Charts.yearBars(J.yearRollup(nd)).svg, 'year demo');
+    assertNoTextOverlap(globalThis.Charts.cashBars(J.cashSeries(nd).slice(-9), { summary: true }).svg, 'cash');
+    assertNoTextOverlap(globalThis.Charts.salesBars(J.salesPoints(nd).slice(-9), { summary: true }).svg, 'sales');
+    const stack = globalThis.Charts.expenseStack(J.expenseStack(nd));
+    if (stack) assertNoTextOverlap(stack.svg, 'expense');
+    const col = globalThis.Charts.collectionBars(J.collectionSeries(nd, J.excludedMap(nd)));
+    if (col) assertNoTextOverlap(col.svg, 'collection');
+    const arpu = globalThis.Charts.arpuChart(J.arpuSeries(nd));
+    if (arpu) assertNoTextOverlap(arpu.svg, 'arpu');
+    const cum = globalThis.Charts.cumChart(J.cumSeries(nd), '2026-10');
+    if (cum) assertNoTextOverlap(cum.svg, 'cum');
+  } finally {
+    J.setNow(function () { return new Date(); });
+  }
+});

@@ -34,11 +34,97 @@
     return m;
   }
 
-  function halo(x, y, fill, text, fs) {
-    return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" fill="' + fill + '" font-size="' + fs + '" font-weight="700" stroke="#0e141b" stroke-width="5" paint-order="stroke" style="paint-order:stroke fill">' + text + '</text>';
+  function halo(x, y, fill, text, fs, series) {
+    const ds = series ? ' data-series="' + series + '"' : '';
+    return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" fill="' + fill + '" font-size="' + fs + '" font-weight="700" stroke="#0e141b" stroke-width="4" paint-order="stroke" style="paint-order:stroke fill"' + ds + '>' + text + '</text>';
   }
-  function label(x, y, text, fs, fill, anchor) {
-    return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || 'middle') + '" fill="' + (fill || '#9aa8ba') + '" font-size="' + fs + '">' + text + '</text>';
+  function label(x, y, text, fs, fill, anchor, role, weight) {
+    const ds = role ? ' data-role="' + role + '"' : '';
+    const fw = weight ? ' font-weight="' + weight + '"' : '';
+    return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || 'middle') + '" fill="' + (fill || '#9aa8ba') + '" font-size="' + fs + '"' + fw + ds + '>' + text + '</text>';
+  }
+  /* 숫자 너비. 겹침을 피하려고 실제 글자보다 조금 넓게 잡는다. */
+  function estimateWidth(text, fs) {
+    const s = String(text);
+    let w = 0;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      if (c > 255) w += fs * 0.95;
+      else if (c === 45 || c === 43 || c === 46 || c === 44) w += fs * 0.42;
+      else w += fs * 0.64;
+    }
+    return w + fs * 0.42;
+  }
+  function labelBox(it) {
+    const fs = it.fs || 14;
+    const w = estimateWidth(it.text, fs);
+    const left = it.anchor === 'end' ? it.x - w : it.anchor === 'start' ? it.x : it.x - w / 2;
+    return { left: left, top: it.y - fs * 0.82, right: left + w, bottom: it.y + fs * 0.26 };
+  }
+  function overlapDepth(a, b) {
+    const A = labelBox(a), B = labelBox(b);
+    const h = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
+    const w = Math.min(A.right, B.right) - Math.max(A.left, B.left);
+    if (h <= 1 || w <= 1) return 0;
+    return h;
+  }
+  function separateLabels(items, minY, maxY) {
+    function allowed(it, y) {
+      if (it.mode === 'pin') return false;
+      if (y < minY - 0.1 || y > maxY + 0.1) return false;
+      if (it.mode === 'up' && it.anchorMax != null && y > it.anchorMax + 0.1) return false;
+      if (it.mode === 'down' && it.anchorMin != null && y < it.anchorMin - 0.1) return false;
+      return true;
+    }
+    for (let pass = 0; pass < 64; pass++) {
+      let pair = null;
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          if (items[i].mode === 'pin' && items[j].mode === 'pin') continue;
+          const d = overlapDepth(items[i], items[j]);
+          if (d > 0 && (!pair || d > pair.d)) pair = { i: i, j: j, d: d };
+        }
+      }
+      if (!pair) return true;
+      const a = items[pair.i], b = items[pair.j];
+      let upper = a.y <= b.y ? a : b;
+      let lower = upper === a ? b : a;
+      if (Math.abs(a.y - b.y) < 0.5) {
+        upper = a.x <= b.x ? a : b;
+        lower = upper === a ? b : a;
+      }
+      const push = pair.d + 3;
+      const canUp = allowed(upper, upper.y - push);
+      const canDown = allowed(lower, lower.y + push);
+      if (canUp && canDown) {
+        upper.y -= push * 0.55;
+        lower.y += push * 0.55;
+      } else if (canUp) upper.y -= push;
+      else if (canDown) lower.y += push;
+      else return false;
+    }
+    return false;
+  }
+  /* 0과 음수 눈금이 붙지 않게 아래 범위를 벌린다. 눈금 글자는 그 눈금 높이에 둔다. */
+  function ensureAxisGap(top, bot, plotH, minPx) {
+    if (!(bot < 0) || !(top > 0) || !(plotH > minPx + 4)) return bot;
+    const gap = plotH * (-bot) / (top - bot);
+    if (gap >= minPx) return bot;
+    return minPx * top / (minPx - plotH);
+  }
+  function paintItem(it) {
+    if (it.kind === 'halo') return halo(it.x, it.y, it.fill, it.text, it.fs, it.series);
+    return label(it.x, it.y, it.text, it.fs, it.fill, it.anchor, it.role, it.weight);
+  }
+  function placeLabels(build, prefer, floor, minY, maxY) {
+    let placed = null;
+    const start = prefer;
+    for (let fs = start; fs >= floor; fs -= 1) {
+      const items = build(fs);
+      if (separateLabels(items, minY(fs), maxY(fs))) return items;
+      placed = items;
+    }
+    return placed || build(floor);
   }
   function wrap(w, h, body, name, scroll) {
     const size = scroll
@@ -68,54 +154,84 @@
       f.padR = 48;
       f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
     }
+    if (summary && pts.length) {
+      let chars = 1;
+      pts.forEach(function (p) {
+        chars = Math.max(chars, String(man(p.income)).length, String(man(p.expense)).length);
+      });
+      const minSlot = Math.max(72, chars * 14 + 16);
+      if (f.slotW < minSlot) {
+        f.slotW = minSlot;
+        f.W = f.padL + pts.length * f.slotW + f.padR;
+      }
+    }
+    /* 점 아래 숫자와 월 글자가 겹치지 않게 아래 여백을 더한다. */
+    f.H += summary ? 28 : 16;
+    f.padB += summary ? 28 : 16;
     const vals = [];
     pts.forEach(function (p) { vals.push(n(p.income), n(p.expense)); });
     const minV = vals.length ? Math.min(0, Math.min.apply(null, vals)) : 0;
     const maxV = vals.length ? Math.max(1, Math.max.apply(null, vals)) : 1;
     const top = Math.max(maxV * 1.18, 1000000);
-    const bot = minV < 0 ? minV * 1.25 : 0;
+    let bot = minV < 0 ? minV * 1.25 : 0;
+    bot = ensureAxisGap(top, bot, f.plotH, summary ? 26 : 20);
     const span = (top - bot) || 1;
     const yAt = function (v) { return f.padT + f.plotH * (1 - (v - bot) / span); };
     const xAt = function (i) { return f.padL + f.slotW * i + f.slotW / 2; };
     const y0 = yAt(0);
     const ticks = bot < 0 ? [bot, 0, top] : [0, top / 2, top];
     let s = '';
+    const pins = [];
     ticks.forEach(function (v) {
       const y = yAt(v);
       const grid = Math.abs(v) < 1 || v === 0;
       s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + (grid && bot < 0 ? '#3a4660' : '#2c3a4d') + '" stroke-width="' + (Math.abs(v) < 1 ? 1.4 : 1) + '"/>';
-      s += label(f.padL - 8, y + 5, man(v), summary ? 20 : 13, '#9aa8ba', 'end');
-      if (!summary) s += label(f.W - 6, y + 5, man(v), 13, '#9aa8ba', 'end');
+      const tfs = summary ? 18 : 13;
+      pins.push({ x: f.padL - 8, y: y + 4, text: man(v), fs: tfs, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
+      if (!summary) pins.push({ x: f.W - 6, y: y + 4, text: man(v), fs: 13, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
     });
     if (bot < 0) {
       s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#3a4660" stroke-width="1.4" stroke-dasharray="4 3"/>';
     }
     function poly(key, color) {
       const d = pts.map(function (p, i) { return xAt(i).toFixed(1) + ',' + yAt(n(p[key])).toFixed(1); }).join(' ');
-      let marks = '';
+      const sw = summary ? 3.6 : 2.6;
+      let marks = '<polyline points="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round"/>';
       pts.forEach(function (p, i) {
         const y = yAt(n(p[key]));
-        const other = yAt(n(p[key === 'income' ? 'expense' : 'income']));
-        let ly = n(p[key]) >= n(p[key === 'income' ? 'expense' : 'income']) ? y - 18 : y + 24;
-        if (Math.abs(y - other) < (summary ? 40 : 26)) {
-          ly = n(p[key]) >= n(p[key === 'income' ? 'expense' : 'income']) ? y - 30 : y + 32;
-        }
-        ly = Math.max(18, Math.min(f.H - 18, ly));
-        const fs = summary ? 22 : 14;
         marks += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (summary ? 5.5 : 4) + '" fill="' + color + '" stroke="#0e141b" stroke-width="1.4"/>';
-        if (!summary || i === pts.length - 1) marks += halo(xAt(i), ly, color, man(p[key]), fs);
-        if (key === 'expense') marks += label(xAt(i), f.H - 16, tickText(pts, i), summary ? 22 : 14, '#9aa8ba');
       });
-      const sw = summary ? 3.6 : 2.6;
-      return '<polyline points="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + sw + '" stroke-linejoin="round" stroke-linecap="round"/>' + marks;
+      return marks;
     }
     s += poly('income', 'var(--inc)');
     s += poly('expense', 'var(--exp)');
+    const monthFs = summary ? 18 : 14;
+    pts.forEach(function (p, i) {
+      pins.push({ x: xAt(i), y: f.H - 16, text: tickText(pts, i), fs: monthFs, fill: '#9aa8ba', anchor: 'middle', mode: 'pin' });
+    });
+    const labels = placeLabels(function (fs) {
+      const items = pins.map(function (p) { return Object.assign({}, p); });
+      pts.forEach(function (p, i) {
+        const yI = yAt(n(p.income));
+        const yE = yAt(n(p.expense));
+        const gap = Math.max(12, fs * 0.85);
+        items.push({
+          x: xAt(i), y: yI - gap, text: man(p.income), fs: fs, fill: 'var(--inc)', anchor: 'middle',
+          mode: 'up', anchorMax: yI - 8, kind: 'halo', series: 'income'
+        });
+        items.push({
+          x: xAt(i), y: yE + gap + 2, text: man(p.expense), fs: fs, fill: 'var(--exp)', anchor: 'middle',
+          mode: 'down', anchorMin: yE + 10, kind: 'halo', series: 'expense'
+        });
+      });
+      return items;
+    }, summary ? 20 : 14, summary ? 15 : 12, function (fs) { return fs; }, function () { return f.H - 4; });
+    labels.forEach(function (it) { s += paintItem(it); });
     pts.forEach(function (p, i) {
       const x = f.padL + i * f.slotW;
       s += '<rect class="months-hit" data-ym="' + p.ym + '" x="' + x.toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
-    return { svg: wrap(f.W, f.H, s, '월별 수입·지출', !summary), scrollLeft: 99999 };
+    return { svg: wrap(f.W, f.H, s, '월별 수입·지출', true), scrollLeft: 99999 };
   }
 
   function cashBars(points, opts) {
@@ -167,24 +283,29 @@
     const maxV = 15000000;
     const yAt = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), maxV) / maxV); };
     const y0 = yAt(0);
+    const goals = [{ v: 10000000, label: '1,000만', color: 'var(--warn)' }, { v: 15000000, label: '1,500만', color: 'var(--inc)' }];
+    const goalFs = summary ? 13 : 12;
+    f.padR = Math.max(f.padR, Math.ceil(estimateWidth('1,500만', goalFs)) + 8);
+    if (summary) f.slotW = (f.W - f.padL - f.padR) / Math.max(pts.length, 1);
+    else f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
     const xAt = function (i) { return f.padL + f.slotW * i + f.slotW / 2; };
-    const barW = Math.max(summary ? 22 : 18, Math.min(summary ? 48 : 28, f.slotW * 0.62));
-    const goals = [{ v: 10000000, label: '1차 1000만', color: 'var(--warn)' }, { v: 15000000, label: '최종 1500만', color: 'var(--inc)' }];
+    const barW = Math.max(summary ? 18 : 16, Math.min(summary ? 40 : 28, f.slotW * 0.55));
     let s = '';
+    const pins = [];
     [0, 7500000, 15000000].forEach(function (v, idx) {
       const y = yAt(v);
       if (idx === 1) s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="#2c3a4d"/>';
-      s += label(f.padL - 8, y + 5, man(v), summary ? 20 : 13, '#9aa8ba', 'end');
+      pins.push({ x: f.padL - 8, y: y + 4, text: man(v), fs: summary ? 18 : 13, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
     });
     goals.forEach(function (g) {
       const y = yAt(g.v);
       s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + g.color + '" stroke-width="1.5" stroke-dasharray="5 4"/>';
-      s += label(f.padL + 6, Math.max(16, y - 6), g.v >= 15000000 ? '1,500만' : '1,000만', summary ? 14 : 12, g.color, 'start');
+      pins.push({ x: f.W - 4, y: Math.max(goalFs, y - 4), text: g.label, fs: goalFs, fill: g.color, anchor: 'end', mode: 'pin' });
     });
     pts.forEach(function (p, i) {
       const cx = xAt(i);
       if (p.value == null) {
-        s += label(cx, f.H - 16, tickText(pts, i), summary ? 22 : 14, '#5c6b80');
+        pins.push({ x: cx, y: f.H - 16, text: tickText(pts, i), fs: summary ? 18 : 14, fill: '#5c6b80', anchor: 'middle', mode: 'pin' });
         return;
       }
       const v = n(p.value);
@@ -192,9 +313,21 @@
       const h = Math.max(v === 0 ? 3 : 4, y0 - y);
       const fill = p.unpaid ? 'var(--exp)' : (p.over ? 'var(--inc)' : (p.cur ? 'var(--fee)' : '#6aa8ff'));
       s += '<rect class="sales-bar" data-fee-ym="' + p.ym + '" x="' + (cx - barW / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="5" fill="' + fill + '"/>';
-      s += halo(cx, y - 12, '#f2f6fb', man(v), summary ? 22 : 14);
-      s += label(cx, f.H - 16, tickText(pts, i), summary ? 22 : 14, p.cur ? '#f2f6fb' : '#9aa8ba');
+      pins.push({ x: cx, y: f.H - 16, text: tickText(pts, i), fs: summary ? 18 : 14, fill: p.cur ? '#f2f6fb' : '#9aa8ba', anchor: 'middle', mode: 'pin' });
     });
+    const labels = placeLabels(function (fs) {
+      const items = pins.map(function (p) { return Object.assign({}, p); });
+      pts.forEach(function (p, i) {
+        if (p.value == null) return;
+        const y = yAt(n(p.value));
+        items.push({
+          x: xAt(i), y: y - Math.max(12, fs * 0.8), text: man(p.value), fs: fs, fill: '#f2f6fb',
+          anchor: 'middle', mode: 'up', anchorMax: y - 8, kind: 'halo', series: 'sales'
+        });
+      });
+      return items;
+    }, summary ? 18 : 14, summary ? 13 : 12, function (fs) { return fs; }, function () { return f.H - 30; });
+    labels.forEach(function (it) { s += paintItem(it); });
     return { svg: wrap(f.W, f.H, s, '월별 교습비', !summary), scrollLeft: 99999 };
   }
 
@@ -206,38 +339,64 @@
       f.padR = 42;
       f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
     }
-    const maxEn = Math.max(1, Math.max.apply(null, pts.map(function (p) { return n(p.enrolled); }).concat([1])));
+    const maxEn = Math.max(1, Math.max.apply(null, pts.map(function (p) {
+      return Math.max(n(p.enrolled), n(p.onLeave), n(p.withdrawn));
+    }).concat([1])));
     const enTop = maxEn * 1.28;
     const yEn = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), enTop) / enTop); };
     const xAt = function (i) { return f.padL + f.slotW * i + f.slotW / 2; };
     const y0 = yEn(0);
+    const series = [
+      { key: 'withdrawn', color: 'var(--exp)' },
+      { key: 'onLeave', color: 'var(--warn)' },
+      { key: 'enrolled', color: 'var(--fee)' }
+    ];
     let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#2c3a4d"/>';
-    s += label(f.padL - 8, yEn(enTop) + 5, String(Math.round(enTop)), summary ? 18 : 13, '#9aa8ba', 'end');
-    s += label(f.padL - 8, y0 + 4, '0', summary ? 18 : 13, '#9aa8ba', 'end');
+    const pins = [];
+    const axisFs = summary ? 16 : 13;
+    pins.push({ x: f.padL - 8, y: yEn(enTop) + 4, text: String(Math.round(enTop)), fs: axisFs, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
+    pins.push({ x: f.padL - 8, y: y0 + 4, text: '0', fs: axisFs, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
     if (!summary) {
-      s += label(f.W - 6, yEn(enTop) + 5, String(Math.round(enTop)), 13, '#9aa8ba', 'end');
-      s += label(f.W - 6, y0 + 4, '0', 13, '#9aa8ba', 'end');
+      pins.push({ x: f.W - 6, y: yEn(enTop) + 4, text: String(Math.round(enTop)), fs: 13, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
+      pins.push({ x: f.W - 6, y: y0 + 4, text: '0', fs: 13, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
     }
-    if (pts.length) {
-      const line = pts.map(function (p, i) { return xAt(i).toFixed(1) + ',' + yEn(n(p.enrolled)).toFixed(1); }).join(' ');
-      s += '<polyline points="' + line + '" fill="none" stroke="#0e141b" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>';
-      s += '<polyline points="' + line + '" fill="none" stroke="var(--fee)" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>';
-    }
-    const fs = 14;
+    series.forEach(function (ser) {
+      if (!pts.length) return;
+      const line = pts.map(function (p, i) { return xAt(i).toFixed(1) + ',' + yEn(n(p[ser.key])).toFixed(1); }).join(' ');
+      s += '<polyline points="' + line + '" fill="none" stroke="#0e141b" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>';
+      s += '<polyline points="' + line + '" fill="none" stroke="' + ser.color + '" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>';
+      pts.forEach(function (p, i) {
+        const y = yEn(n(p[ser.key]));
+        s += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (summary ? 4.5 : 3.6) + '" fill="' + ser.color + '" stroke="#0e141b" stroke-width="1.3"/>';
+      });
+    });
     pts.forEach(function (p, i) {
       const cx = xAt(i);
-      const ye = yEn(n(p.enrolled));
-      s += '<circle cx="' + cx.toFixed(1) + '" cy="' + ye.toFixed(1) + '" r="' + (summary ? 5 : 4) + '" fill="var(--fee)" stroke="#0e141b" stroke-width="1.4"/>';
-      const ly = Math.max(f.padT + 16, Math.min(y0 - 8, ye - (summary ? 18 : 14)));
-      s += halo(cx, ly, 'var(--fee)', String(n(p.enrolled)), summary ? 20 : 14);
-      s += label(cx, f.H - (summary ? 16 : 34), tickText(pts, i), summary ? 18 : 13, '#9aa8ba');
+      pins.push({ x: cx, y: f.H - (summary ? 16 : 34), text: tickText(pts, i), fs: summary ? 16 : 13, fill: '#9aa8ba', anchor: 'middle', mode: 'pin' });
       if (!summary) {
-        s += '<text x="' + (cx - 1).toFixed(1) + '" y="' + (f.H - 12) + '" text-anchor="end" fill="var(--inc)" font-size="' + fs + '" font-weight="700">+' + n(p.entered) + '</text>';
-        s += '<text x="' + (cx + 1).toFixed(1) + '" y="' + (f.H - 12) + '" text-anchor="start" fill="var(--exp)" font-size="' + fs + '" font-weight="700">−' + n(p.left) + '</text>';
+        pins.push({ x: cx - 3, y: f.H - 12, text: '+' + n(p.entered), fs: 13, fill: 'var(--inc)', anchor: 'end', mode: 'pin', weight: '700' });
+        pins.push({ x: cx + 3, y: f.H - 12, text: '−' + n(p.left), fs: 13, fill: 'var(--exp)', anchor: 'start', mode: 'pin', weight: '700' });
       }
+    });
+    const labels = placeLabels(function (fs) {
+      const items = pins.map(function (p) { return Object.assign({}, p); });
+      pts.forEach(function (p, i) {
+        series.forEach(function (ser) {
+          const y = yEn(n(p[ser.key]));
+          const gap = Math.max(11, fs * 0.8);
+          items.push({
+            x: xAt(i), y: Math.min(y0 - 6, y - gap), text: String(n(p[ser.key])), fs: fs, fill: ser.color,
+            anchor: 'middle', mode: 'up', anchorMax: y - 7, kind: 'halo', series: ser.key
+          });
+        });
+      });
+      return items;
+    }, summary ? 16 : 13, summary ? 12 : 11, function (fs) { return fs + 2; }, function () { return f.H - (summary ? 30 : 40); });
+    labels.forEach(function (it) { s += paintItem(it); });
+    pts.forEach(function (p, i) {
       s += '<rect class="stu-flow-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
-    return { svg: wrap(f.W, f.H, s, '재원 선, 아래 숫자는 신규와 퇴소', !summary), scrollLeft: 99999 };
+    return { svg: wrap(f.W, f.H, s, '재원 휴원 퇴소 인원', true), scrollLeft: 99999 };
   }
 
   function expenseStack(model) {
@@ -253,7 +412,7 @@
     const maxV = Math.max(1, Math.max.apply(null, pos.concat(totals.map(function (v) { return Math.max(0, v); }))));
     const minV = Math.min(0, Math.min.apply(null, totals));
     const top = Math.max(maxV * 1.22, 1000000);
-    const bot = minV < 0 ? minV * 1.3 : 0;
+    const bot = ensureAxisGap(top, minV < 0 ? minV * 1.3 : 0, f.plotH, 26);
     const span = (top - bot) || 1;
     const yAt = function (v) { return f.padT + f.plotH * (1 - (v - bot) / span); };
     const y0 = yAt(0);
@@ -418,7 +577,12 @@
     const minV = Math.min(0, Math.min.apply(null, vals));
     const maxV = Math.max(1, Math.max.apply(null, vals));
     const top = Math.max(maxV * 1.22, 1000000);
-    const bot = minV < 0 ? minV * 1.28 : 0;
+    let bot = minV < 0 ? minV * 1.28 : 0;
+    if (minV < 0) {
+      f.H += 20;
+      f.padB += 20;
+    }
+    bot = ensureAxisGap(top, bot, f.plotH, 28);
     const span = (top - bot) || 1;
     const yAt = function (v) { return f.padT + f.plotH * (1 - (v - bot) / span); };
     const y0 = yAt(0);
@@ -427,12 +591,17 @@
       { key: 'expense', color: 'var(--exp)' },
       { key: 'net', color: 'var(--net)' }
     ];
-    const barW = Math.max(16, Math.min(40, (f.slotW - 36) / 3));
-    const gap = 8;
+    const barW = Math.max(16, Math.min(44, (f.slotW - 28) / 3));
+    const gap = 10;
     let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#3a4660" stroke-width="1.4"/>';
-    s += label(f.padL - 8, yAt(top) + 5, man(top), 18, '#9aa8ba', 'end');
-    s += label(f.padL - 8, y0 + 5, '0', 18, '#9aa8ba', 'end');
-    if (bot < 0) s += label(f.padL - 8, yAt(bot) + 5, man(bot), 18, '#9aa8ba', 'end');
+    const pins = [];
+    const tickFs = 16;
+    function pinTick(v) {
+      pins.push({ x: f.padL - 8, y: yAt(v) + 4, text: v === 0 ? '0' : man(v), fs: tickFs, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
+    }
+    pinTick(top);
+    pinTick(0);
+    if (bot < 0) pinTick(bot);
     pts.forEach(function (p, i) {
       const cx = f.padL + f.slotW * (i + 0.5);
       const totalW = series.length * barW + (series.length - 1) * gap;
@@ -444,13 +613,39 @@
         const h = Math.max(2, Math.abs(y0 - y));
         s += '<rect x="' + x.toFixed(1) + '" y="' + topY.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="5" fill="' + ser.color + '"/>';
       });
-      const net = n(p.net);
-      const netX = cx - totalW / 2 + 2 * (barW + gap) + barW / 2;
-      const netY = yAt(net);
-      const ly = net >= 0 ? Math.max(f.padT + 16, Math.min(netY, y0) - 20) : Math.max(netY, y0) + 20;
-      s += halo(netX, ly, 'var(--net)', man(net), 18);
-      s += label(cx, f.H - 16, String(p.year || '').slice(2) + '년', 20, '#f2f6fb');
+      pins.push({ x: cx, y: f.H - 16, text: String(p.year || '').slice(2) + '년', fs: 18, fill: '#f2f6fb', anchor: 'middle', mode: 'pin' });
     });
+    const labels = placeLabels(function (fs) {
+      const items = pins.map(function (p) { return Object.assign({}, p); });
+      pts.forEach(function (p, i) {
+        const cx = f.padL + f.slotW * (i + 0.5);
+        const totalW = series.length * barW + (series.length - 1) * gap;
+        series.forEach(function (ser, si) {
+          const v = n(p[ser.key]);
+          const x = cx - totalW / 2 + si * (barW + gap) + barW / 2;
+          const y = yAt(v);
+          const topY = Math.min(y, y0);
+          const botY = Math.max(y, y0);
+          const above = v >= 0;
+          const gapY = Math.max(12, fs * 0.85);
+          items.push({
+            x: x,
+            y: above ? topY - gapY : botY + gapY,
+            text: man(v),
+            fs: fs,
+            fill: ser.color,
+            anchor: 'middle',
+            mode: above ? 'up' : 'down',
+            anchorMax: above ? topY - 8 : null,
+            anchorMin: above ? null : botY + 8,
+            kind: 'halo',
+            series: ser.key
+          });
+        });
+      });
+      return items;
+    }, 16, 12, function (fs) { return fs; }, function () { return f.H - 36; });
+    labels.forEach(function (it) { s += paintItem(it); });
     return { svg: wrap(f.W, f.H, s, '연도별 수입 지출 순이익', false) };
   }
 
