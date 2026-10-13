@@ -439,6 +439,31 @@
     return false;
   }
 
+  /* 명단 구역 제목 행('퇴소 명단', '휴원 및 퇴원 명단', '대기명단' 등). 제목이면 구역 이름, 아니면 ''. */
+  /* 학생 행 상태칸의 '대기 명단' 같은 글은 제목이 아니다: 이름칸이 제목이거나, 이름칸이 비어 있을 때만 본다. */
+  function rosterSectionTitle(row, nameIdx) {
+    const r = row || [];
+    const nk = nameIdx >= 0 ? headerKey(r[nameIdx]) : '';
+    if (nk && !(nk.indexOf('명단') >= 0 && nk.length <= 16)) return '';
+    const cells = r.map(headerKey).filter(Boolean);
+    for (let i = 0; i < cells.length; i++) {
+      const k = cells[i];
+      if (k.indexOf('명단') >= 0 && k.length <= 16) return k;
+    }
+    return '';
+  }
+
+  /* 제목 → 구역 묶음. 퇴소/퇴원이 들어간 제목만 '퇴소' 구역이다. */
+  function rosterSectionBucket(title) {
+    if (!title) return '';
+    if (title.indexOf('퇴소') >= 0 || title.indexOf('퇴원') >= 0) return '퇴소';
+    return 'other';
+  }
+
+  function isBlankRow(row) {
+    return !(row || []).some(function (c) { return _s(c) !== ''; });
+  }
+
   function delayMs(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
@@ -623,14 +648,20 @@
     const GORDER = { '초등': 0, '중등': 1, '고등': 2, '성인': 3 };
     const BORDER = { '재학': 0, '휴원': 1, '퇴소': 2, '기타': 3 };
     const students = [];
+    /* 구역: 제목 행에서 시작해 다음 제목 행이나 빈 행에서 끝난다.
+       빈 행 뒤 제목 없는 묶음(문의·가망 등)은 퇴소로 잡지 않는다. */
+    let section = '';
     ros.slice(layout.headerIndex + 1).forEach(function (r) {
+      if (isBlankRow(r)) { section = ''; return; }
+      const title = rosterSectionTitle(r, cols.name);
+      if (title) { section = rosterSectionBucket(title); return; }
       const name = _s(r[cols.name]);
       if (isRosterSkipName(name) || headerKey(r[cols.status]) === '상태') return;
       const status = _s(r[cols.status]) || '미정';
       const g1 = _s(r[cols.grade1]);
       const g2v = _s(r[cols.grade2]) !== '' ? _num(r[cols.grade2]) : null;
       const grade = (g1 + (g2v != null ? ' ' + g2v : '')).trim();
-      const bucket = statusBucket(status);
+      const bucket = section === '퇴소' ? '퇴소' : statusBucket(status);
       const st = { name: name, grade1: g1, grade2: g2v, grade: grade, status: status, tuition: _num(r[cols.tuition]), bucket: bucket };
       if (cols.payType >= 0 && _s(r[cols.payType])) st.payType = _s(r[cols.payType]);
       if (schoolIdx >= 0 && _s(r[schoolIdx])) st.school = _s(r[schoolIdx]);
@@ -888,7 +919,7 @@
     const kindOf = {};
     ((data && data.students) || []).forEach(function (st) {
       if (!st || !st.name || kindOf[st.name]) return;
-      kindOf[st.name] = statusBucket(st.status || st.bucket || '');
+      kindOf[st.name] = st.bucket === '퇴소' ? '퇴소' : statusBucket(st.status || st.bucket || '');
     });
     const lastEnrolled = {};
     Object.keys(roster || {}).sort().forEach(function (ym) {

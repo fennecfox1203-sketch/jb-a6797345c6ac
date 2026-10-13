@@ -823,3 +823,28 @@ test('student chart draws 재원, 휴원, and 퇴소 and labels do not collide',
     J.setNow(function () { return new Date(); });
   }
 });
+
+test('퇴소 명단 구역 학생은 상태와 관계없이 퇴소, 빈 행 뒤 제목 없는 묶음은 아님', function () {
+  const bank = blank(30); bank[16] = '대상자'; bank[19] = '납부월'; bank[20] = '납부 년도';
+  const H = ['순번', '이름', '출생년도', '나이', '학년1', '학년2', '주소', '상태', '교습비'];
+  const ros = rowsFrom([
+    H,
+    ['1', '학생A', '2014', '13', '초등', '6', '가', '재학', '100'],
+    ['2', '학생B', '2014', '13', '초등', '6', '가', '대기 명단', ''],
+    blank(9),
+    ['', '', '휴원 및 퇴원 명단', '', '', '', '', '', ''],
+    ['', '퇴소 명단', '출생년도', '', '', '', '주소', '상태', ''],
+    ['1', '학생C', '2014', '13', '초등', '6', '가', '휴원', '100'],
+    ['2', '학생D', '2014', '13', '초등', '6', '가', '자습', '100'],
+    blank(9),
+    ['1', '학생E', '2014', '13', '초등', '6', '가', '', '']
+  ]);
+  const d = J.buildLedger([bank], ros);
+  const by = {}; d.students.forEach(function (s) { by[s.name] = s.bucket; });
+  assert.equal(by['학생A'], '재학');
+  assert.equal(by['학생B'], '기타');
+  assert.equal(by['학생C'], '퇴소');
+  assert.equal(by['학생D'], '퇴소');
+  assert.equal(by['학생E'], '기타');
+  assert.ok(!('퇴소 명단' in by));
+});
