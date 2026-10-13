@@ -1054,8 +1054,8 @@ function minusWon(n) {
         + '<div class="metric"><span class="n">최근 재원</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
         + '<div class="metric"><span class="n">기간 신규</span><span class="a inc">' + totE + '명</span></div>'
         + '<div class="metric"><span class="n">기간 퇴소</span><span class="a exp">' + totL + '명</span></div></div>'
-        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '선은 재원·퇴소 인원 · 모든 달에 숫자 · 아래 숫자는 신규·그달 퇴소 · 누르면 명단', svg: chart.svg, legend: [
-          { color: 'var(--fee)', label: '재원' }, { color: 'var(--exp)', label: '퇴소' }
+        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '큰 막대는 재원, 안쪽 막대는 신규·퇴소 · 좌우로 밀기 · 누르면 명단', svg: chart.svg, legend: [
+          { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
         ] })
         + '<div class="card"><h2>월별</h2>' + (rows || emptyBox('데이터 없음')) + '</div>' + peekHtml();
       $('backStuChart').onclick = function () { state.stuView = 'list'; render(); };
@@ -1075,8 +1075,8 @@ function minusWon(n) {
       const tail = d == null ? '' : (d === 0 ? ' · 전월과 같음' : (' · 전월보다 ' + Math.abs(d) + '명 ' + (d > 0 ? '많음' : '적음')));
       flowLine = '<p class="summary-line">' + esc(J.longYmLabel(flowCh.last.ym) + ' 재원 ' + flowCh.last.enrolled + '명' + tail + '. 퇴소 ' + (flowCh.last.withdrawn || 0) + '명. 최근 3개월 신규 ' + flowCh.recentEntered + '명 · 그달 퇴소 ' + flowCh.recentLeft + '명.') + '</p>';
     }
-    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '선은 재원·퇴소 인원 · 누르면 월별', svg: chart.svg, legend: [
-      { color: 'var(--fee)', label: '재원' }, { color: 'var(--exp)', label: '퇴소' }
+    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '큰 막대는 재원, 안쪽 막대는 신규·퇴소 · 누르면 월별', svg: chart.svg, legend: [
+      { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
     ] })
       + '<div class="card">' + flowLine + '<div class="metric"><span class="n">' + (last ? esc(J.shortYm(last.ym)) + ' 재원' : '재원') + '</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
       + '<div class="metric"><span class="n">퇴소</span><span class="a exp">' + (last ? last.withdrawn + '명' : '—') + '</span></div>'
@@ -1278,7 +1278,7 @@ function minusWon(n) {
     });
   }
   const FETCH_TRIES = 3;
-  const FETCH_TIMEOUT_MS = 8000;
+  const FETCH_TIMEOUT_MS = 15000;
   const FETCH_BACKOFF_MS = [400, 900];
   let _gvizSeq = 0;
   async function fetchCsvOnce(name) {
@@ -1372,9 +1372,11 @@ function minusWon(n) {
   function showSyncFailure(err) {
     const view = J.syncFailureView(err, cachedLedger());
     loadNote = view;
+    try { console.error('sync failed', err); } catch (e) {}
     if (view.kind === 'stale') {
       setSyncStatus('이전 자료 ' + (J.hhmmFromCache(DATA) || ''));
-      showBanner(view.banner, 'warn');
+      const why = err && err.message ? String(err.message).slice(0, 80) : '';
+      showBanner(view.banner + (why ? ' · 이유: ' + why : ''), 'warn');
       return;
     }
     if (view.kind === 'schema') {

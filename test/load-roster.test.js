@@ -784,7 +784,7 @@ test('year bars separate the zero tick and label every series', function () {
   assertNoTextOverlap(svg, 'year');
 });
 
-test('student chart draws 재원, 휴원, and 퇴소 and labels do not collide', function () {
+test('student chart draws 재원 bars with nested 신규·퇴소 bars and labels do not collide', function () {
   J.setNow(function () { return new Date('2026-10-12T03:00:00Z'); });
   try {
     const src = globalThis.buildDemoSource();
@@ -795,15 +795,16 @@ test('student chart draws 재원, 휴원, and 퇴소 and labels do not collide',
     assert.match(svg.slice(0, 120), /width="100%"/);
     assert.doesNotMatch(svg.slice(0, 120), /width="\d+"/);
     const texts = svgTexts(svg);
-    ['enrolled', 'onLeave', 'withdrawn'].forEach(function (key) {
+    ['enrolled', 'entered', 'withdrawn'].forEach(function (key) {
       assert.ok(texts.filter(function (t) { return t.series === key; }).length <= pts.length, key);
     });
-    assert.ok((svg.match(/<polyline /g) || []).length >= 6);
+    assert.equal((svg.match(/<polyline /g) || []).length, 0);
+    assert.ok((svg.match(/<rect x=/g) || []).length >= pts.length);
     assertNoTextOverlap(svg, 'enroll');
     const detail = globalThis.Charts.enrollBars(J.flowSeries(nd), { summary: false }).svg;
     const dTexts = svgTexts(detail);
     const allPts = J.flowSeries(nd);
-    ['enrolled', 'onLeave', 'withdrawn'].forEach(function (key) {
+    ['enrolled', 'entered', 'withdrawn'].forEach(function (key) {
       assert.equal(dTexts.filter(function (t) { return t.series === key; }).length, allPts.length, key);
     });
     assert.match(detail, /width="\d+/);
