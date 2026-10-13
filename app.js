@@ -1047,15 +1047,15 @@ function minusWon(n) {
       const totE = pts.reduce(function (a, x) { return a + x.entered; }, 0);
       const totL = pts.reduce(function (a, x) { return a + x.left; }, 0);
       const rows = pts.slice().reverse().map(function (x) {
-        return '<button type="button" class="line stu-flow-row" data-ym="' + x.ym + '"><div><div>' + esc(J.shortYm(x.ym)) + '</div><div class="m">재원 ' + x.enrolled + ' · 휴원 ' + (x.onLeave || 0) + ' · 퇴소 ' + (x.withdrawn || 0) + '</div></div><div class="a"><span style="color:var(--inc)">+' + x.entered + '</span> <span style="color:var(--exp)">−' + x.left + '</span></div></button>';
+        return '<button type="button" class="line stu-flow-row" data-ym="' + x.ym + '"><div><div>' + esc(J.shortYm(x.ym)) + '</div><div class="m">재원 ' + x.enrolled + ' · 퇴소 ' + (x.withdrawn || 0) + '</div></div><div class="a"><span style="color:var(--inc)">+' + x.entered + '</span> <span style="color:var(--exp)">−' + x.left + '</span></div></button>';
       }).join('');
       p.innerHTML = backBtn('backStuChart', '← 학생')
         + '<div class="card"><h2>재원·신규·퇴소</h2><div class="hint">전월까지. 신규는 이번 달 재원에 있고 전달 재원에는 없는 학생. 퇴소는 전달 재원에는 있고 이번 달 재원에는 없는 학생. 재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달부터 유예가 없습니다.</div>'
         + '<div class="metric"><span class="n">최근 재원</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
         + '<div class="metric"><span class="n">기간 신규</span><span class="a inc">' + totE + '명</span></div>'
         + '<div class="metric"><span class="n">기간 퇴소</span><span class="a exp">' + totL + '명</span></div></div>'
-        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '선은 재원·휴원·퇴소 인원 · 모든 달에 숫자 · 아래 숫자는 신규·그달 퇴소 · 누르면 명단', svg: chart.svg, legend: [
-          { color: 'var(--fee)', label: '재원' }, { color: 'var(--warn)', label: '휴원' }, { color: 'var(--exp)', label: '퇴소' }
+        + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '선은 재원·퇴소 인원 · 모든 달에 숫자 · 아래 숫자는 신규·그달 퇴소 · 누르면 명단', svg: chart.svg, legend: [
+          { color: 'var(--fee)', label: '재원' }, { color: 'var(--exp)', label: '퇴소' }
         ] })
         + '<div class="card"><h2>월별</h2>' + (rows || emptyBox('데이터 없음')) + '</div>' + peekHtml();
       $('backStuChart').onclick = function () { state.stuView = 'list'; render(); };
@@ -1073,15 +1073,14 @@ function minusWon(n) {
     if (flowCh && flowCh.last) {
       const d = flowCh.enrolledDelta;
       const tail = d == null ? '' : (d === 0 ? ' · 전월과 같음' : (' · 전월보다 ' + Math.abs(d) + '명 ' + (d > 0 ? '많음' : '적음')));
-      flowLine = '<p class="summary-line">' + esc(J.longYmLabel(flowCh.last.ym) + ' 재원 ' + flowCh.last.enrolled + '명' + tail + '. 휴원 ' + (flowCh.last.onLeave || 0) + '명 · 퇴소 ' + (flowCh.last.withdrawn || 0) + '명. 최근 3개월 신규 ' + flowCh.recentEntered + '명 · 그달 퇴소 ' + flowCh.recentLeft + '명.') + '</p>';
+      flowLine = '<p class="summary-line">' + esc(J.longYmLabel(flowCh.last.ym) + ' 재원 ' + flowCh.last.enrolled + '명' + tail + '. 퇴소 ' + (flowCh.last.withdrawn || 0) + '명. 최근 3개월 신규 ' + flowCh.recentEntered + '명 · 그달 퇴소 ' + flowCh.recentLeft + '명.') + '</p>';
     }
-    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '선은 재원·휴원·퇴소 인원 · 누르면 월별', svg: chart.svg, legend: [
-      { color: 'var(--fee)', label: '재원' }, { color: 'var(--warn)', label: '휴원' }, { color: 'var(--exp)', label: '퇴소' }
+    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '선은 재원·퇴소 인원 · 누르면 월별', svg: chart.svg, legend: [
+      { color: 'var(--fee)', label: '재원' }, { color: 'var(--exp)', label: '퇴소' }
     ] })
       + '<div class="card">' + flowLine + '<div class="metric"><span class="n">' + (last ? esc(J.shortYm(last.ym)) + ' 재원' : '재원') + '</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
-      + '<div class="metric"><span class="n">휴원</span><span class="a warn">' + (last ? last.onLeave + '명' : '—') + '</span></div>'
       + '<div class="metric"><span class="n">퇴소</span><span class="a exp">' + (last ? last.withdrawn + '명' : '—') + '</span></div>'
-      + '<div class="hint">재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 휴원은 휴원 기록에 있는 달과, 상태가 휴원인데 그달 재원이 아닌 학생입니다. 퇴소는 상태가 퇴소인 학생을 마지막 재원 다음 달부터 셉니다. 상태 칸은 재원·휴원·퇴소와 글자가 조금 달라도 같은 묶음으로 봅니다.</div></div>'
+      + '<div class="hint">재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 신규는 전달 재원이 아니고 그달 납부한 학생입니다. 퇴소는 3개월 연속 미납이면 첫 미납 달에 소급해 세고, 상태가 퇴소인 학생은 마지막 납부 다음 달, 휴원 기록에 적힌 달도 퇴소로 셉니다(다시 납부하면 신규). 진행 중인 이번 달은 판정하지 않습니다. 상태 칸은 재원·휴원·퇴소와 글자가 조금 달라도 같은 묶음으로 봅니다.</div></div>'
       + (last ? gradeCard(last.ym) : '')
       + gradeSalesCard(pts.map(function (x) { return x.ym; }))
       + arpuCard();
