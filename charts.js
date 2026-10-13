@@ -414,7 +414,7 @@
       f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
     }
     const maxEn = Math.max(1, Math.max.apply(null, pts.map(function (p) {
-      return Math.max(n(p.enrolled), n(p.onLeave), n(p.withdrawn));
+      return Math.max(n(p.enrolled), n(p.withdrawn));
     }).concat([1])));
     const enTop = maxEn * 1.28;
     const yEn = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), enTop) / enTop); };
@@ -422,7 +422,6 @@
     const y0 = yEn(0);
     const series = [
       { key: 'withdrawn', color: 'var(--exp)' },
-      { key: 'onLeave', color: 'var(--warn)' },
       { key: 'enrolled', color: 'var(--fee)' }
     ];
     let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#2c3a4d"/>';
@@ -477,7 +476,7 @@
     pts.forEach(function (p, i) {
       s += '<rect class="stu-flow-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
-    return { svg: wrap(f.W, f.H, s, '재원 휴원 퇴소 인원', !summary), scrollLeft: 99999 };
+    return { svg: wrap(f.W, f.H, s, '재원 퇴소 인원', !summary), scrollLeft: 99999 };
   }
 
   function expenseStack(model) {

@@ -849,12 +849,17 @@
         if (!prevPays.length) return;
         const last = prevPays[prevPays.length - 1];
         const next = pi.find(function (x) { return x > k; });
+        const gapOf = function (a, b) {
+          let g = 0;
+          for (let j = a + 1; j < b; j++) if (!rest[j].has(n)) g++;
+          return g;
+        };
         if (next != null) {
-          if (next - last - 1 < LEAVE_MONTHS) cache[m].add(n);
+          if (gapOf(last, next) < LEAVE_MONTHS) cache[m].add(n);
           return;
         }
         if (gone.has(n)) return;
-        if (lastIdx >= 0 && lastIdx - last < LEAVE_MONTHS) cache[m].add(n);
+        if (lastIdx >= 0 && k <= lastIdx && gapOf(last, lastIdx + 1) < LEAVE_MONTHS) cache[m].add(n);
       });
     });
     return cache;
@@ -943,9 +948,10 @@
         enteredNames: entered,
         leftNames: left,
         onLeave: head.onLeave,
-        withdrawn: head.withdrawn,
+        /* 퇴소 선은 그달 재원에서 빠진 학생(3개월 미납 소급, 상태 퇴소, 휴원 기록 달). 2026-10-01 합의 규칙. */
+        withdrawn: left.length,
         onLeaveNames: head.onLeaveNames,
-        withdrawnNames: head.withdrawnNames
+        withdrawnNames: left
       };
     });
   }
