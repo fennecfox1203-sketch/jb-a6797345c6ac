@@ -413,70 +413,42 @@
       f.padR = 42;
       f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
     }
+    /* 큰 막대는 그달 재원(정원), 안쪽 작은 막대는 신규·퇴소. 퇴소 수는 2026-10-01 합의 규칙(ledger.flowSeries). */
     const maxEn = Math.max(1, Math.max.apply(null, pts.map(function (p) {
-      return Math.max(n(p.enrolled), n(p.withdrawn));
+      return Math.max(n(p.enrolled), n(p.entered), n(p.withdrawn));
     }).concat([1])));
-    const enTop = maxEn * 1.28;
-    const yEn = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), enTop) / enTop); };
+    const top = maxEn * 1.28;
+    const yAt = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), top) / top); };
     const xAt = function (i) { return f.padL + f.slotW * i + f.slotW / 2; };
-    const y0 = yEn(0);
-    const series = [
-      { key: 'withdrawn', color: 'var(--exp)' },
-      { key: 'enrolled', color: 'var(--fee)' }
-    ];
-    let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#2c3a4d"/>';
-    const pins = [];
+    const y0 = yAt(0);
+    const bigW = Math.max(summary ? 22 : 24, Math.min(summary ? 56 : 46, f.slotW * 0.8));
+    const gap = 3;
+    const smallW = (bigW - gap * 3) / 2;
     const axisFs = summary ? 16 : 13;
-    pins.push({ x: f.padL - 8, y: yEn(enTop) + 4, text: String(Math.round(enTop)), fs: axisFs, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
-    pins.push({ x: f.padL - 8, y: y0 + 4, text: '0', fs: axisFs, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
-    if (!summary) {
-      pins.push({ x: f.W - 6, y: yEn(enTop) + 4, text: String(Math.round(enTop)), fs: 13, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
-      pins.push({ x: f.W - 6, y: y0 + 4, text: '0', fs: 13, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
-    }
-    series.forEach(function (ser) {
-      if (!pts.length) return;
-      const line = pts.map(function (p, i) { return xAt(i).toFixed(1) + ',' + yEn(n(p[ser.key])).toFixed(1); }).join(' ');
-      s += '<polyline points="' + line + '" fill="none" stroke="#0e141b" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>';
-      s += '<polyline points="' + line + '" fill="none" stroke="' + ser.color + '" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>';
-      pts.forEach(function (p, i) {
-        const y = yEn(n(p[ser.key]));
-        s += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (summary ? 4.5 : 3.6) + '" fill="' + ser.color + '" stroke="#0e141b" stroke-width="1.3"/>';
-      });
+    let s = '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#2c3a4d"/>';
+    s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + yAt(top / 2).toFixed(1) + '" y2="' + yAt(top / 2).toFixed(1) + '" stroke="#1f2a38"/>';
+    [0, top / 2, top].forEach(function (v) {
+      s += label(f.padL - 8, yAt(v) + 5, String(Math.round(v)), axisFs, '#9aa8ba', 'end');
+      if (!summary) s += label(f.W - 6, yAt(v) + 5, String(Math.round(v)), 13, '#9aa8ba', 'end');
     });
-    const rank = { enrolled: 3, onLeave: 2, withdrawn: 1 };
+    const numFs = summary ? (pts.length > 9 ? 14 : 16) : 13;
+    const subFs = summary ? (pts.length > 9 ? 11 : 13) : 11;
     pts.forEach(function (p, i) {
       const cx = xAt(i);
-      pins.push({
-        x: cx, y: f.H - (summary ? 16 : 34), text: tickText(pts, i), fs: summary ? 14 : 13, fill: '#9aa8ba', anchor: 'middle', mode: 'pin',
-        droppable: summary, priority: 5000 + i
+      const en = n(p.enrolled), ne = n(p.entered), wd = n(p.withdrawn);
+      const ye = yAt(en);
+      s += '<rect x="' + (cx - bigW / 2).toFixed(1) + '" y="' + ye.toFixed(1) + '" width="' + bigW.toFixed(1) + '" height="' + Math.max(2, y0 - ye).toFixed(1) + '" rx="4" fill="var(--fee)" opacity="0.45"/>';
+      s += halo(cx, ye - 8, 'var(--fee)', String(en), numFs, 'enrolled');
+      [[ne, 'var(--inc)', -1, 'entered'], [wd, 'var(--exp)', 1, 'withdrawn']].forEach(function (b) {
+        const x = b[2] < 0 ? cx - bigW / 2 + gap : cx + gap / 2;
+        const y = yAt(b[0]);
+        if (b[0]) s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + smallW.toFixed(1) + '" height="' + Math.max(2, y0 - y).toFixed(1) + '" rx="2" fill="' + b[1] + '"/>';
+        s += halo(x + smallW / 2, Math.min(y0 - 4, y - 4), b[1], String(b[0]), subFs, b[3]);
       });
-      if (!summary) {
-        pins.push({ x: cx - 3, y: f.H - 12, text: '+' + n(p.entered), fs: 13, fill: 'var(--inc)', anchor: 'end', mode: 'pin', weight: '700' });
-        pins.push({ x: cx + 3, y: f.H - 12, text: '−' + n(p.left), fs: 13, fill: 'var(--exp)', anchor: 'start', mode: 'pin', weight: '700' });
-      }
-    });
-    const labels = placeLabels(function (fs) {
-      const items = pins.map(function (p) { return Object.assign({}, p); });
-      pts.forEach(function (p, i) {
-        series.forEach(function (ser) {
-          const y = yEn(n(p[ser.key]));
-          const gap = Math.max(11, fs * 0.8);
-          const shift = ser.key === 'onLeave' ? -1 : ser.key === 'withdrawn' ? 1 : 0;
-          const x = xAt(i) + shift * Math.min(fs * 0.95, f.slotW * 0.22);
-          items.push({
-            x: x, y: Math.min(y0 - 6, y - gap), text: String(n(p[ser.key])), fs: fs, fill: ser.color,
-            anchor: 'middle', mode: 'up', anchorMax: y - 7, kind: 'halo', series: ser.key,
-            droppable: summary, priority: (i + 1) * 10 + (rank[ser.key] || 0)
-          });
-        });
-      });
-      return items;
-    }, summary ? 14 : 13, summary ? 12 : 11, function (fs) { return fs + 2; }, function () { return f.H - (summary ? 30 : 40); }, summary);
-    labels.forEach(function (it) { s += paintItem(it); });
-    pts.forEach(function (p, i) {
+      s += label(cx, f.H - (summary ? 16 : 14), tickText(pts, i), summary ? 14 : 13, '#9aa8ba');
       s += '<rect class="stu-flow-hit" data-ym="' + p.ym + '" x="' + (f.padL + i * f.slotW).toFixed(1) + '" y="' + f.padT + '" width="' + f.slotW.toFixed(1) + '" height="' + f.plotH + '" fill="transparent"/>';
     });
-    return { svg: wrap(f.W, f.H, s, '재원 퇴소 인원', !summary), scrollLeft: 99999 };
+    return { svg: wrap(f.W, f.H, s, '재원 막대 안에 신규·퇴소 막대', !summary), scrollLeft: 99999 };
   }
 
   function expenseStack(model) {
