@@ -34,6 +34,7 @@
   <div class="totals-head" id="totalsHead"></div>
   <div class="totals" id="totals"></div>
   <p class="totals-note" id="totalsNote"></p>
+  <div class="workspace">
   <nav class="tabs" role="tablist" aria-label="화면">
     <button type="button" class="tab on" role="tab" id="tab-sales" aria-controls="panel-sales" aria-selected="true" data-tab="sales">목표</button>
     <button type="button" class="tab" role="tab" id="tab-students" aria-controls="panel-students" aria-selected="false" tabindex="-1" data-tab="students">학생</button>
@@ -42,12 +43,15 @@
     <button type="button" class="tab" role="tab" id="tab-suji" aria-controls="panel-suji" aria-selected="false" tabindex="-1" data-tab="suji">현금흐름</button>
     <button type="button" class="tab" role="tab" id="tab-bank" aria-controls="panel-bank" aria-selected="false" tabindex="-1" data-tab="bank">거래내역</button>
   </nav>
+  <div class="stage">
   <div class="panel on" id="panel-sales" role="tabpanel" aria-labelledby="tab-sales"></div>
   <div class="panel" id="panel-months" role="tabpanel" aria-labelledby="tab-months" aria-hidden="true"></div>
   <div class="panel" id="panel-suji" role="tabpanel" aria-labelledby="tab-suji" aria-hidden="true"></div>
   <div class="panel" id="panel-fee" role="tabpanel" aria-labelledby="tab-fee" aria-hidden="true"></div>
   <div class="panel" id="panel-students" role="tabpanel" aria-labelledby="tab-students" aria-hidden="true"></div>
   <div class="panel" id="panel-bank" role="tabpanel" aria-labelledby="tab-bank" aria-hidden="true"></div>
+  </div>
+  </div>
 </div>
 <div class="foot" id="foot"></div>
 <script src="ledger.js"></script>

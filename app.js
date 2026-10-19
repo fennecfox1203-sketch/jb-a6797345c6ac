@@ -548,8 +548,8 @@ function minusWon(n) {
         c = next.toISOString().slice(0, 10);
       }
       p.innerHTML = backBtn('backSales', '← 목표')
-        + '<div class="card"><div class="cal-head"><div><h2>1차 목표 디데이</h2><div class="hint">기한 2026.12.31 · 월 교습비 1,000만</div></div><div class="dday">' + ddayLabel + '</div></div><div class="metric"><span class="n">지난 날</span><span class="a warn">' + gone + '일</span></div><div class="metric"><span class="n">남은 날</span><span class="a">' + Math.max(0, dday) + '일</span></div></div>'
-        + '<div class="card">' + (months.map(function (ym) { return calendarHtml(ym, today, J.SALES_DEADLINE); }).join('') || emptyBox('기한이 지났습니다'))
+        + '<div class="card stat-tiles"><div class="cal-head"><div><h2>1차 목표 디데이</h2><div class="hint">기한 2026.12.31 · 월 교습비 1,000만</div></div><div class="dday">' + ddayLabel + '</div></div><div class="metric"><span class="n">지난 날</span><span class="a warn">' + gone + '일</span></div><div class="metric"><span class="n">남은 날</span><span class="a">' + Math.max(0, dday) + '일</span></div></div>'
+        + '<div class="card cal-board">' + (months.map(function (ym) { return calendarHtml(ym, today, J.SALES_DEADLINE); }).join('') || emptyBox('기한이 지났습니다'))
         + '<div class="cal-legend"><span>지난 날</span><span>남은 날</span><span>목표일</span></div></div>';
       $('backSales').onclick = function () { state.salesView = 'list'; render(); };
       return;
@@ -560,9 +560,9 @@ function minusWon(n) {
       const m = (DATA.months || []).find(function (x) { return x.ym === ym; }) || { income: 0 };
       const lines = ((DATA.monthDetails || {})[ym] || []).filter(function (x) { return x.dir === '수입'; }).slice().sort(function (a, b) { return Math.abs(b.amt) - Math.abs(a.amt); });
       p.innerHTML = backBtn('backSales', '← 목표')
-        + '<div class="card"><h2>' + esc(J.longYmLabel(ym)) + ' 수입</h2><div class="metric"><span class="n">수입 합계</span><span class="a inc">' + J.won(m.income || 0) + '</span></div><div class="hint">학년 비중은 통장 입금월 기준</div></div>'
+        + '<div class="split"><div class="card"><h2>' + esc(J.longYmLabel(ym)) + ' 수입</h2><div class="metric"><span class="n">수입 합계</span><span class="a inc">' + J.won(m.income || 0) + '</span></div><div class="hint">학년 비중은 통장 입금월 기준</div></div>'
         + donutBlock('수입 학년 비중', J.incomeByGrade(DATA, ym), 0)
-        + '<div class="card"><button type="button" class="detail-toggle" id="incDetailToggle">상세보기</button><div class="detail-panel" id="incDetailPanel" hidden>'
+        + '</div><div class="card"><button type="button" class="detail-toggle" id="incDetailToggle">상세보기</button><div class="detail-panel" id="incDetailPanel" hidden>'
         + (lines.length ? lines.map(function (l) {
           const label = l.student || l.cat2 || l.memo || l.dir;
           const sub = [(l.day || '').slice(5), l.cat2 || '', l.cat3 && l.cat3 !== '-' && l.cat3 !== l.cat2 ? l.cat3 : '', l.memo ? l.memo.slice(0, 28) : ''].filter(Boolean).join(' · ');
@@ -581,9 +581,9 @@ function minusWon(n) {
       const exp = J.monthParts(DATA, ym).exp;
       const lines = ((DATA.monthDetails || {})[ym] || []).filter(function (x) { return x.dir === '지출'; }).slice().sort(function (a, b) { return Math.abs(b.amt) - Math.abs(a.amt); });
       p.innerHTML = backBtn('backSales', '← 목표')
-        + '<div class="card"><h2>' + esc(J.longYmLabel(ym)) + ' 지출</h2><div class="metric"><span class="n">지출 합계</span><span class="a exp">' + J.won(m.expense || 0) + '</span></div></div>'
+        + '<div class="split"><div class="card"><h2>' + esc(J.longYmLabel(ym)) + ' 지출</h2><div class="metric"><span class="n">지출 합계</span><span class="a exp">' + J.won(m.expense || 0) + '</span></div></div>'
         + donutBlock('지출 비중', exp.kids || [], 1)
-        + '<div class="card"><button type="button" class="detail-toggle" id="expDetailToggle">상세보기</button><div class="detail-panel" id="expDetailPanel" hidden>'
+        + '</div><div class="card"><button type="button" class="detail-toggle" id="expDetailToggle">상세보기</button><div class="detail-panel" id="expDetailPanel" hidden>'
         + (lines.length ? lines.map(function (l) {
           const label = [l.cat2, l.cat3 && l.cat3 !== '-' ? l.cat3 : ''].filter(Boolean).join(' · ') || l.dir;
           const sub = [(l.day || '').slice(5), l.memo ? l.memo.slice(0, 28) : '', l.student || ''].filter(Boolean).join(' · ');
@@ -607,9 +607,9 @@ function minusWon(n) {
         { name: '납부', amt: block.paidTotal || 0, kids: paid.map(function (s) { return { name: s.name + (s.grade ? ' · ' + s.grade : ''), amt: s.amt || 0 }; }) }
       ];
       p.innerHTML = backBtn('backSales', '← 목표')
-        + '<div class="card"><h2>' + esc(J.longYmLabel(ym)) + ' 교습비</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + unpaid.length + '명 · ' + J.won(unpaidAmt) + '</span></div><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || paid.length) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div><div class="hint">납부대상월 기준</div></div>'
+        + '<div class="split"><div class="card"><h2>' + esc(J.longYmLabel(ym)) + ' 교습비</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + unpaid.length + '명 · ' + J.won(unpaidAmt) + '</span></div><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || paid.length) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div><div class="hint">납부대상월 기준</div></div>'
         + donutBlock('납부 대 미납', kids, 0)
-        + '<div class="card"><button type="button" class="detail-toggle" id="feePayDetailToggle">상세보기</button><div class="detail-panel" id="feePayDetailPanel" hidden>'
+        + '</div><div class="card"><button type="button" class="detail-toggle" id="feePayDetailToggle">상세보기</button><div class="detail-panel" id="feePayDetailPanel" hidden>'
         + '<h2>미납</h2>' + (unpaid.length ? unpaid.map(function (s) { return '<div class="line"><div><div>' + esc(s.name) + '</div><div class="m">' + esc(s.grade || '') + '</div></div><div class="a" style="color:var(--warn)">' + J.won(s.expected || 0) + '</div></div>'; }).join('') : emptyBox('미납 없음'))
         + '<h2>납부</h2>' + (paid.length ? paid.map(function (s) { return '<div class="line"><div><div>' + esc(s.name) + '</div><div class="m">' + esc(s.grade || '') + '</div></div><div class="a" style="color:var(--fee)">' + J.won(s.amt || 0) + '</div></div>'; }).join('') : emptyBox('납부 없음'))
         + '</div></div><button type="button" class="back block" id="toFeeTabPay">교습비 탭에서 보기</button>';
@@ -654,9 +654,11 @@ function minusWon(n) {
       };
       p.innerHTML = backBtn('backSales', '← 목표')
         + '<div class="card"><h2>' + esc(J.koShortYm(ym)) + ' 교습비 매출</h2><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || 0) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div><div class="hint">학년·학교·주소. 학교와 주소는 명단 머리글에 그 열이 있을 때만 나뉩니다.</div></div>'
+        + '<div class="tile-grid">'
         + donutBlock('학년별 납부', group(enriched, band), 0)
         + donutBlock('학교별 납부', group(enriched, function (s) { return s.school; }), 2)
         + donutBlock('주소별 납부', group(enriched, function (s) { return s.address; }), 3)
+        + '</div>'
         + '<button type="button" class="back block" id="toFeeTab">교습비 탭에서 보기</button>';
       $('backSales').onclick = function () { state.salesView = 'list'; render(); };
       $('toFeeTab').onclick = function () { goFeeMonth(ym); };
@@ -675,7 +677,7 @@ function minusWon(n) {
         + chartCard({ id: 'salesChart', scrollId: 'salesScroll', summary: false, hint: '좌우 스크롤', svg: chart.svg, legend: [
           { color: 'var(--fee)', label: '이번 달' }, { color: '#6aa8ff', label: '납부 월' }, { color: 'var(--exp)', label: '미납 있는 달' }, { color: 'var(--inc)', label: '1차 목표 달성' }
         ] })
-        + '<div class="card"><h2>월별 · 1차 목표 대비</h2><div class="month-row head"><span>월</span><span>교습비</span><span>1차와 차이</span></div>' + (rows || emptyBox('데이터 없음')) + '</div>';
+        + '<div class="card sheet"><h2>월별 · 1차 목표 대비</h2><div class="month-row head"><span>월</span><span>교습비</span><span>1차와 차이</span></div>' + (rows || emptyBox('데이터 없음')) + '</div>';
       $('backSales').onclick = function () { state.salesView = 'list'; render(); };
       p.querySelectorAll('[data-fee-ym]').forEach(function (r) { r.onclick = function () { goFeeMonth(r.dataset.feeYm); }; });
       const sc = $('salesScroll');
@@ -684,10 +686,11 @@ function minusWon(n) {
     }
 
     p.innerHTML = '<div class="goal-grid"><button type="button" class="card go" id="curFeeCard"><div class="hint">이번 달 교습비 · ' + esc(J.koShortYm(cur)) + '</div><div class="hero" style="color:var(--fee)">' + J.won(curSales) + '</div><div class="hint">1차 목표 ' + J.won(J.SALES_GOAL_1) + ' · ' + pct + '%</div><div class="prog"><span style="width:' + pct + '%"></span></div><div class="hint" style="margin-top:8px">' + (gap > 0 ? '1차 목표까지 ' + J.won(gap) : '1차 목표 초과 ' + J.won(-gap)) + '</div><div class="hint">도넛 상세</div></button><button type="button" class="card go" id="ddayCard"><div class="hint">1차 목표 1,000만</div><div class="dday">' + ddayLabel + '</div><div class="hint">2026.12.31까지</div><div class="hint" style="margin-top:10px">기준은 교습비 납부 합계</div><div class="hint">디데이 달력</div></button></div>'
+      + '<div class="split">'
       + chartCard({ id: 'salesChart', scrollId: 'salesHomeScroll', summary: true, hint: '최근 9개월 · 누르면 전체', svg: chart.svg, legend: [
         { color: 'var(--fee)', label: '이번 달' }, { color: 'var(--exp)', label: '미납 있는 달' }
       ] })
-      + '<div class="card"><h2>월별 · 1차 목표 대비</h2><div class="month-row head"><span>월</span><span>교습비</span><span>1차와 차이</span></div>' + (rows || emptyBox('데이터 없음')) + '</div>';
+      + '<div class="card sheet"><h2>월별 · 1차 목표 대비</h2><div class="month-row head"><span>월</span><span>교습비</span><span>1차와 차이</span></div>' + (rows || emptyBox('데이터 없음')) + '</div></div>';
     bindPress('salesChart', function (e) { if (e.target.closest && e.target.closest('.month-row')) return; goSalesChartDetail(); });
     $('curFeeCard').onclick = function () { state.salesView = 'feeDonut'; state.feeMonth = cur; render(); };
     $('ddayCard').onclick = function () { state.salesView = 'ddayCal'; render(); };
@@ -783,9 +786,11 @@ function minusWon(n) {
       const parts = J.monthParts(DATA, state.month);
       const filt = function (key, label) { return '<button type="button" data-f="' + key + '" class="' + (state.dirFilt === key ? 'on' : '') + '">' + label + '</button>'; };
       p.innerHTML = backBtn('backM', '← 월 목록')
-        + '<div class="card"><h2>' + esc(J.longYmLabel(m.ym)) + '</h2><div class="metric"><span class="n">수입</span><span class="a inc">' + J.won(m.income) + '</span></div><div class="metric"><span class="n">지출</span><span class="a ' + ((m.expense || 0) < 0 ? 'inc' : 'exp') + '">' + J.won(m.expense) + '</span></div><div class="metric"><span class="n">순이익</span><span class="a">' + J.won((Number(m.income) || 0) - (Number(m.expense) || 0)) + '</span></div><div class="metric"><span class="n">교습비 · 통장</span><span class="a fee">' + J.won(m.fee) + '</span></div><div class="hint">교습비는 중분류 또는 세부분류가 교습비인 수입입니다. 순이익은 수입에서 지출을 뺀 값입니다.</div></div>'
+        + '<div class="card stat-tiles"><h2>' + esc(J.longYmLabel(m.ym)) + '</h2><div class="metric"><span class="n">수입</span><span class="a inc">' + J.won(m.income) + '</span></div><div class="metric"><span class="n">지출</span><span class="a ' + ((m.expense || 0) < 0 ? 'inc' : 'exp') + '">' + J.won(m.expense) + '</span></div><div class="metric"><span class="n">순이익</span><span class="a">' + J.won((Number(m.income) || 0) - (Number(m.expense) || 0)) + '</span></div><div class="metric"><span class="n">교습비 · 통장</span><span class="a fee">' + J.won(m.fee) + '</span></div><div class="hint">교습비는 중분류 또는 세부분류가 교습비인 수입입니다. 순이익은 수입에서 지출을 뺀 값입니다.</div></div>'
+        + '<div class="split">'
         + donutBlock('지출 비중', parts.exp.kids || [], 1)
         + donutBlock('수입 비중', parts.inc.kids || [], 0)
+        + '</div>'
         + '<div class="filt">' + filt('all', '전체') + filt('inc', '수입') + filt('exp', '지출') + filt('fee', '교습비') + '</div>'
         + '<input class="search" id="q" placeholder="학생·메모 검색" aria-label="학생·메모 검색" value="' + esc(state.q) + '"/>'
         + '<div class="card"><button type="button" class="detail-toggle" id="monthDetailToggle">상세보기</button><div class="detail-panel" id="monthDetailPanel" hidden>' + lineItems(lines) + '</div></div>';
@@ -804,13 +809,16 @@ function minusWon(n) {
     const stack = C.expenseStack(J.expenseStack(DATA));
     const cmp = J.periodCompare(DATA);
     const months = (DATA.months || []).slice().reverse();
-    p.innerHTML = chartCard({ id: 'monthsChart', scrollId: 'monthsHomeScroll', summary: true, hint: '최근 9개월 · 만 원 · 수입은 점 위, 지출은 점 아래 · 누르면 전체', svg: chart.svg, legend: [
+    p.innerHTML = '<div class="split">' + chartCard({ id: 'monthsChart', scrollId: 'monthsHomeScroll', summary: true, hint: '최근 9개월 · 만 원 · 수입은 점 위, 지출은 점 아래 · 누르면 전체', svg: chart.svg, legend: [
       { color: 'var(--inc)', label: '수입' }, { color: 'var(--exp)', label: '지출' }
     ] })
       + periodCard(cmp)
+      + '</div><div class="split">'
       + yearCard(cmp.years)
       + expenseCard(stack)
+      + '</div>'
       + '<div class="card"><div class="hint">월을 누르면 상세. 그래프를 누르면 전체 기간.</div></div>'
+      + '<div class="row-grid">'
       + months.map(function (m) {
         const exp = Math.round(Number(m.expense) || 0);
         const expHtml = exp < 0
@@ -818,7 +826,7 @@ function minusWon(n) {
           : '<div style="color:var(--exp)">' + minusWon(exp) + '</div>';
         const net = Math.round((Number(m.income) || 0) - (Number(m.expense) || 0));
         return '<button type="button" class="row" data-ym="' + m.ym + '"><div><div class="ym">' + esc(J.shortYm(m.ym)) + '</div>' + monthBar(m) + '</div><div class="right"><div style="color:var(--inc)">' + plusWon(m.income) + '</div>' + expHtml + '<div class="netline">순 ' + plusWon(net) + '</div></div></button>';
-      }).join('');
+      }).join('') + '</div>';
     bindPress('monthsChart', function () { goMonthsChartDetail(); });
     const toNet = $('toSujiNet');
     if (toNet) toNet.onclick = function () { setTab('suji'); };
@@ -884,12 +892,13 @@ function minusWon(n) {
     const chart = C.cashBars(home, { summary: true, selectedYm: state.month });
     const cumAll = J.cumSeries(DATA);
     const cum = C.cumChart(cumAll, J.currentYmSeoul());
-    p.innerHTML = chartCard({ id: 'sujiChart', scrollId: 'sujiHomeScroll', summary: true, hint: '순이익(수입−지출) · 최근 9개월 · 누르면 전체 · 만 원', svg: chart.svg, legend: [
+    p.innerHTML = '<div class="split">' + chartCard({ id: 'sujiChart', scrollId: 'sujiHomeScroll', summary: true, hint: '순이익(수입−지출) · 최근 9개월 · 누르면 전체 · 만 원', svg: chart.svg, legend: [
       { color: 'var(--inc)', label: '플러스' }, { color: 'var(--exp)', label: '마이너스' }
     ] })
       + cumCard(cum, cumAll)
+      + '</div>'
       + '<div class="seg" id="segS">' + months.map(function (ym) { return '<button type="button" data-ym="' + ym + '" class="' + (ym === state.month ? 'on' : '') + '">' + esc(J.shortYm(ym)) + '</button>'; }).join('') + '</div>'
-      + '<div class="card">' + (tree.map(function (n1, i1) {
+      + '<div class="card flow-board">' + (tree.map(function (n1, i1) {
         const col = n1.name === '수입' ? 'var(--inc)' : n1.name === '지출' ? 'var(--exp)' : 'var(--muted)';
         return '<div class="tree-item" data-l="1" data-i="' + i1 + '"><div class="head"><span>' + esc(n1.name) + '</span><span class="amt" style="color:' + col + '">' + J.won(n1.amt) + '</span></div><div class="tree-kids open" id="k1-' + i1 + '">'
           + (n1.kids || []).map(function (n2, i2) {
@@ -962,11 +971,11 @@ function minusWon(n) {
 
     if (isAll) {
       const col = C.collectionBars(J.collectionSeries(DATA, ex));
-      const body = groups.length ? groups.map(function (g) {
+      const body = groups.length ? '<div class="tile-grid">' + groups.map(function (g) {
         return '<div class="card"><h2>' + esc(J.shortYm(g.ym)) + ' 미납 · ' + g.list.length + '명 · ' + J.won(g.total) + '</h2>' + g.list.map(function (s) { return unpaidRow(s); }).join('') + '</div>';
-      }).join('') : '<div class="card">' + emptyBox('미납 없음') + '</div>';
-      p.innerHTML = seg + '<div class="card"><h2>전체 미납</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + allCount + '명 · ' + J.won(allTotal) + '</span></div><div class="metric"><span class="n">기간</span><span class="a">' + (groups.length ? esc(J.shortYm(groups[0].ym)) + ' ~ ' + esc(J.shortYm(groups[groups.length - 1].ym)) : '—') + '</span></div></div>'
-        + collectionCard(col) + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>' + body + peekHtml();
+      }).join('') + '</div>' : '<div class="card">' + emptyBox('미납 없음') + '</div>';
+      p.innerHTML = seg + '<div class="split"><div class="card"><h2>전체 미납</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + allCount + '명 · ' + J.won(allTotal) + '</span></div><div class="metric"><span class="n">기간</span><span class="a">' + (groups.length ? esc(J.shortYm(groups[0].ym)) + ' ~ ' + esc(J.shortYm(groups[groups.length - 1].ym)) : '—') + '</span></div></div>'
+        + collectionCard(col) + '</div><input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>' + body + peekHtml();
     } else {
       const block = (DATA.tuition || {})[state.feeMonth] || { paidTotal: 0, paidCount: 0, paid: [], unpaid: [] };
       let list = state.feeFilt === 'paid' ? (block.paid || []).slice() : J.unpaidVisible(DATA, state.feeMonth, ex);
@@ -977,10 +986,10 @@ function minusWon(n) {
       const unpaid = J.unpaidVisible(DATA, state.feeMonth, ex);
       const unpaidAmt = unpaid.reduce(function (a, s) { return a + (s.expected || 0); }, 0);
       const open = J.isFeeMonthOpen(state.feeMonth);
-      p.innerHTML = seg + '<div class="card"><h2>납부대상 ' + esc(J.shortYm(state.feeMonth)) + '</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + (open ? unpaid.length + '명 · ' + J.won(unpaidAmt) : '아직 시작 전') + '</span></div><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || 0) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div></div>'
+      p.innerHTML = seg + '<div class="card stat-tiles"><h2>납부대상 ' + esc(J.shortYm(state.feeMonth)) + '</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + (open ? unpaid.length + '명 · ' + J.won(unpaidAmt) : '아직 시작 전') + '</span></div><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || 0) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div></div>'
         + '<div class="filt"><button type="button" data-ff="unpaid" class="' + (state.feeFilt === 'unpaid' ? 'on warn' : '') + '">미납 ' + unpaid.length + '</button><button type="button" data-ff="paid" class="' + (state.feeFilt === 'paid' ? 'on ok' : '') + '">납부 ' + (block.paidCount || 0) + '</button></div>'
         + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>'
-        + '<div class="card">' + (list.length ? list.map(function (s) {
+        + '<div class="card pair-list">' + (list.length ? list.map(function (s) {
           if (state.feeFilt === 'unpaid') return unpaidRow(s);
           return '<div class="line"><div><div>' + esc(s.name) + '</div><div class="m">' + esc(s.grade || '') + (s.day ? ' · ' + esc(s.day.slice(5)) : '') + (s.expected ? ' · 명단 ' + J.won(s.expected) : '') + '</div></div><div class="a" style="color:var(--fee)">' + J.won(s.amt) + '</div></div>';
         }).join('') : emptyBox('해당 없음')) + '</div>' + peekHtml();
@@ -1050,14 +1059,14 @@ function minusWon(n) {
         return '<button type="button" class="line stu-flow-row" data-ym="' + x.ym + '"><div><div>' + esc(J.shortYm(x.ym)) + '</div><div class="m">재원 ' + x.enrolled + ' · 퇴소 ' + (x.withdrawn || 0) + '</div></div><div class="a"><span style="color:var(--inc)">+' + x.entered + '</span> <span style="color:var(--exp)">−' + x.left + '</span></div></button>';
       }).join('');
       p.innerHTML = backBtn('backStuChart', '← 학생')
-        + '<div class="card"><h2>재원·신규·퇴소</h2><div class="hint">전월까지. 신규는 이번 달 재원에 있고 전달 재원에는 없는 학생. 퇴소는 전달 재원에는 있고 이번 달 재원에는 없는 학생. 재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달부터 유예가 없습니다.</div>'
+        + '<div class="card stat-tiles"><h2>재원·신규·퇴소</h2><div class="hint">전월까지. 신규는 이번 달 재원에 있고 전달 재원에는 없는 학생. 퇴소는 전달 재원에는 있고 이번 달 재원에는 없는 학생. 재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달부터 유예가 없습니다.</div>'
         + '<div class="metric"><span class="n">최근 재원</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
         + '<div class="metric"><span class="n">기간 신규</span><span class="a inc">' + totE + '명</span></div>'
         + '<div class="metric"><span class="n">기간 퇴소</span><span class="a exp">' + totL + '명</span></div></div>'
         + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '큰 막대는 재원, 안쪽 막대는 신규·퇴소 · 좌우로 밀기 · 누르면 명단', svg: chart.svg, legend: [
           { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
         ] })
-        + '<div class="card"><h2>월별</h2>' + (rows || emptyBox('데이터 없음')) + '</div>' + peekHtml();
+        + '<div class="card pair-list"><h2>월별</h2>' + (rows || emptyBox('데이터 없음')) + '</div>' + peekHtml();
       $('backStuChart').onclick = function () { state.stuView = 'list'; render(); };
       const sc = $('stuEnrollScroll');
       pinRight(sc); bindChartHDrag(sc);
@@ -1075,14 +1084,16 @@ function minusWon(n) {
       const tail = d == null ? '' : (d === 0 ? ' · 전월과 같음' : (' · 전월보다 ' + Math.abs(d) + '명 ' + (d > 0 ? '많음' : '적음')));
       flowLine = '<p class="summary-line">' + esc(J.longYmLabel(flowCh.last.ym) + ' 재원 ' + flowCh.last.enrolled + '명' + tail + '. 퇴소 ' + (flowCh.last.withdrawn || 0) + '명. 최근 3개월 신규 ' + flowCh.recentEntered + '명 · 그달 퇴소 ' + flowCh.recentLeft + '명.') + '</p>';
     }
-    p.innerHTML = chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '큰 막대는 재원, 안쪽 막대는 신규·퇴소 · 누르면 월별', svg: chart.svg, legend: [
+    p.innerHTML = '<div class="split">' + chartCard({ id: 'stuEnrollChart', scrollId: 'stuHomeScroll', summary: true, hint: '큰 막대는 재원, 안쪽 막대는 신규·퇴소 · 누르면 월별', svg: chart.svg, legend: [
       { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
     ] })
       + '<div class="card">' + flowLine + '<div class="metric"><span class="n">' + (last ? esc(J.shortYm(last.ym)) + ' 재원' : '재원') + '</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
       + '<div class="metric"><span class="n">퇴소</span><span class="a exp">' + (last ? last.withdrawn + '명' : '—') + '</span></div>'
-      + '<div class="hint">재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 신규는 전달 재원이 아니고 그달 납부한 학생입니다. 퇴소는 3개월 연속 미납이면 첫 미납 달에 소급해 세고, 상태가 퇴소인 학생은 마지막 납부 다음 달, 휴원 기록에 적힌 달도 퇴소로 셉니다(다시 납부하면 신규). 진행 중인 이번 달은 판정하지 않습니다. 상태 칸은 재원·휴원·퇴소와 글자가 조금 달라도 같은 묶음으로 봅니다.</div></div>'
+      + '<div class="hint">재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 신규는 전달 재원이 아니고 그달 납부한 학생입니다. 퇴소는 3개월 연속 미납이면 첫 미납 달에 소급해 세고, 상태가 퇴소인 학생은 마지막 납부 다음 달, 휴원 기록에 적힌 달도 퇴소로 셉니다(다시 납부하면 신규). 진행 중인 이번 달은 판정하지 않습니다. 상태 칸은 재원·휴원·퇴소와 글자가 조금 달라도 같은 묶음으로 봅니다.</div></div></div>'
+      + '<div class="split">'
       + (last ? gradeCard(last.ym) : '')
       + gradeSalesCard(pts.map(function (x) { return x.ym; }))
+      + '</div>'
       + arpuCard();
     bindPress('stuEnrollChart', function () { goStudentChartDetail(); });
   }
@@ -1131,11 +1142,12 @@ function minusWon(n) {
       const d = last.avg - prev.avg;
       delta = d ? '<span class="delta">전월 ' + (d > 0 ? '▲ ' : '▼ ') + J.won(Math.abs(d)) + '</span>' : '<span class="delta">전월과 같음</span>';
     }
-    return '<div class="card nx-card"><h2>학생 1인당 평균 교습비</h2><div class="hint">납부 합계 ÷ 납부 인원. 옅은 막대는 납부 인원. 끝난 달까지.</div><div class="nx-chart">' + chart.svg + '</div>'
+    return '<div class="card nx-card chart-side"><h2>학생 1인당 평균 교습비</h2><div class="hint">납부 합계 ÷ 납부 인원. 옅은 막대는 납부 인원. 끝난 달까지.</div><div class="nx-chart">' + chart.svg + '</div>'
+      + '<div class="stat-stack">'
       + '<div class="metric"><span class="n">' + esc(J.shortYm(last.ym)) + ' 1인 평균</span><span class="a fee">' + J.won(last.avg) + delta + '</span></div>'
       + '<div class="metric"><span class="n">' + esc(J.shortYm(last.ym)) + ' 납부</span><span class="a">' + last.count + '명 · ' + J.won(last.total) + '</span></div>'
       + (be ? '<div class="metric"><span class="n">손익분기 인원</span><span class="a ' + (be > last.count ? 'warn' : 'inc') + '">약 ' + be + '명</span></div><div class="hint">' + esc(J.shortYm(last.ym)) + ' 통장 지출 ' + J.won(exp) + ' ÷ 1인 평균. 이만큼 납부하면 그 달 지출과 같습니다.</div>' : '')
-      + '</div>';
+      + '</div></div>';
   }
 
   function renderStudentFlow() {
@@ -1154,12 +1166,12 @@ function minusWon(n) {
       return '<button type="button" class="stu-card" data-name="' + esc(name) + '"><div class="top"><span class="name">' + esc(name) + '</span><span class="badge ' + cls + '">' + tag + '</span></div><div class="meta">' + esc(meta) + '</div></button>';
     }
     p.innerHTML = backBtn('backStuFlow', state.stuView === 'chartDetail' ? '← 그래프' : '← 학생')
-      + '<div class="card"><h2>' + esc(J.shortYm(state.stuFlowYm)) + ' 신규·퇴소</h2><div class="metric"><span class="n">신규</span><span class="a inc">' + row.entered + '명</span></div><div class="metric"><span class="n">퇴소</span><span class="a exp">' + row.left + '명</span></div></div>'
+      + '<div class="card stat-tiles"><h2>' + esc(J.shortYm(state.stuFlowYm)) + ' 신규·퇴소</h2><div class="metric"><span class="n">신규</span><span class="a inc">' + row.entered + '명</span></div><div class="metric"><span class="n">퇴소</span><span class="a exp">' + row.left + '명</span></div></div>'
       + '<div class="seg" id="segStuFlow">' + yms.slice().reverse().map(function (ym) { return '<button type="button" data-ym="' + ym + '" class="' + (ym === state.stuFlowYm ? 'on' : '') + '">' + esc(J.shortYm(ym)) + '</button>'; }).join('') + '</div>'
       + '<h2 class="sec-title" style="color:var(--inc)">신규 ' + row.entered + '</h2>'
-      + (row.enteredNames.length ? row.enteredNames.map(function (n) { return person(n, 'enter'); }).join('') : emptyBox('이달 신규 없음'))
+      + '<div class="tile-grid dense">' + (row.enteredNames.length ? row.enteredNames.map(function (n) { return person(n, 'enter'); }).join('') : emptyBox('이달 신규 없음')) + '</div>'
       + '<h2 class="sec-title" style="color:var(--exp)">퇴소 ' + row.left + '</h2>'
-      + (row.leftNames.length ? row.leftNames.map(function (n) { return person(n, 'leave'); }).join('') : emptyBox('이달 퇴소 없음'))
+      + '<div class="tile-grid dense">' + (row.leftNames.length ? row.leftNames.map(function (n) { return person(n, 'leave'); }).join('') : emptyBox('이달 퇴소 없음')) + '</div>'
       + '<div class="hint" style="margin-top:8px">휴원 기록에 적힌 달은 재원에서 빠져, 그 달에 퇴소로 보이고 다음 납부 달에 신규로 다시 잡힐 수 있습니다.</div>'
       + peekHtml();
     $('backStuFlow').onclick = function () { state.stuFlowYm = null; render(); };
@@ -1199,10 +1211,10 @@ function minusWon(n) {
     p.innerHTML = uploadCard()
       + '<div class="hint" style="margin-bottom:10px">구글 시트에 있는 거래입니다. 분류 수정은 시트에서 합니다.</div>'
       + '<div class="seg" id="segBank">' + months.map(function (ym) { return '<button type="button" data-ym="' + ym + '" class="' + (ym === state.bankMonth ? 'on' : '') + '">' + esc(J.shortYm(ym)) + '</button>'; }).join('') + '</div>'
-      + '<div class="card"><h2>' + esc(J.shortYm(state.bankMonth)) + ' 합계</h2><div class="metric"><span class="n">수입 · ' + sumLines.filter(function (x) { return x.dir === '수입'; }).length + '건</span><span class="a inc">' + J.won(sumInc) + '</span></div><div class="metric"><span class="n">지출 · ' + sumLines.filter(function (x) { return x.dir === '지출'; }).length + '건</span><span class="a exp">' + J.won(sumExp) + '</span></div><div class="metric"><span class="n">전체 · ' + sumLines.length + '건</span><span class="a">' + J.won(sumInc + sumExp) + '</span></div></div>'
+      + '<div class="card stat-tiles"><h2>' + esc(J.shortYm(state.bankMonth)) + ' 합계</h2><div class="metric"><span class="n">수입 · ' + sumLines.filter(function (x) { return x.dir === '수입'; }).length + '건</span><span class="a inc">' + J.won(sumInc) + '</span></div><div class="metric"><span class="n">지출 · ' + sumLines.filter(function (x) { return x.dir === '지출'; }).length + '건</span><span class="a exp">' + J.won(sumExp) + '</span></div><div class="metric"><span class="n">전체 · ' + sumLines.length + '건</span><span class="a">' + J.won(sumInc + sumExp) + '</span></div></div>'
       + '<div class="filt">' + filt('all', '전체') + filt('inc', '수입') + filt('exp', '지출') + '</div>'
       + '<input class="search" id="bankQ" placeholder="학생·메모·분류 검색" aria-label="학생·메모·분류 검색" value="' + esc(state.q) + '"/>'
-      + '<div class="card"><div class="hint">거래 ' + lines.length + '건</div>' + (lines.length ? lines.map(function (l) {
+      + '<div class="card txn"><div class="txn-head" aria-hidden="true"><span>내용</span><span>분류</span><span>날짜</span><span class="num">금액</span></div><div class="hint">거래 ' + lines.length + '건</div>' + (lines.length ? lines.map(function (l) {
         const parts = [l.dir, l.cat2, l.cat3].filter(function (x, i, arr) { return x && x !== '-' && arr[i - 1] !== x; });
         const title = l.student || l.memo || parts[parts.length - 1] || l.dir || '거래';
         const color = l.dir === '지출' ? 'var(--exp)' : ((l.cat2 === '교습비' || l.cat3 === '교습비') ? 'var(--fee)' : 'var(--inc)');
@@ -1437,14 +1449,24 @@ function minusWon(n) {
   document.querySelectorAll('.tab').forEach(function (b) {
     b.addEventListener('click', function () { setTab(b.dataset.tab); });
   });
+  function syncNavOrientation() {
+    const nav = document.querySelector('.tabs');
+    if (!nav || !window.matchMedia) return;
+    nav.setAttribute('aria-orientation', window.matchMedia('(min-width: 1024px)').matches ? 'vertical' : 'horizontal');
+  }
+  syncNavOrientation();
+  if (window.matchMedia) {
+    const wideNav = window.matchMedia('(min-width: 1024px)');
+    if (wideNav.addEventListener) wideNav.addEventListener('change', syncNavOrientation);
+  }
   const tabList = document.querySelector('.tabs');
   if (tabList) {
     tabList.addEventListener('keydown', function (e) {
-      if (['ArrowRight', 'ArrowLeft', 'Home', 'End'].indexOf(e.key) < 0) return;
+      if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].indexOf(e.key) < 0) return;
       const tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
       let i = tabs.findIndex(function (t) { return t.dataset.tab === state.tab; });
-      if (e.key === 'ArrowRight') i = (i + 1) % tabs.length;
-      else if (e.key === 'ArrowLeft') i = (i - 1 + tabs.length) % tabs.length;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') i = (i + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') i = (i - 1 + tabs.length) % tabs.length;
       else if (e.key === 'Home') i = 0;
       else i = tabs.length - 1;
       e.preventDefault();
