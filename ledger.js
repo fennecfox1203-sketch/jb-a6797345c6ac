@@ -452,6 +452,58 @@
     return gvizFn();
   }
 
+  /* gviz는 큰 탭에서 뒤쪽 일부만 주거나 날짜 칸을 비우기도 한다. 그런 자료는 반영하지 않는다. */
+  function partialDataError(msg) {
+    const err = new Error(msg);
+    err.code = 'partial-data';
+    return err;
+  }
+
+  function checkBankRows(rows) {
+    rows = rows || [];
+    let hi = -1;
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      if ((rows[i] || []).some(function (c) { return _s(c).trim() === '거래일자'; })) { hi = i; break; }
+    }
+    if (hi < 0) throw partialDataError('통장거래내역 일부만 받아져서(머리글 없음) 반영하지 않았어요');
+    const header = rows[hi].map(function (c) { return _s(c).trim(); });
+    const dateIdx = header.indexOf('거래일자');
+    const outIdx = header.findIndex(function (h) { return h.indexOf('출금') === 0; });
+    const inIdx = header.findIndex(function (h) { return h.indexOf('입금') === 0; });
+    let total = 0, bad = 0;
+    for (let i = hi + 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const hasMoney = (outIdx >= 0 && _s(r[outIdx]).trim()) || (inIdx >= 0 && _s(r[inIdx]).trim());
+      if (!hasMoney) continue; /* 나눠 적은 줄(A~H 빈칸)과 빈 줄은 세지 않는다 */
+      total++;
+      if (!_s(r[dateIdx]).trim()) bad++;
+    }
+    if (total && bad / total > 0.05) {
+      throw partialDataError('통장거래내역 날짜가 빠진 줄이 ' + bad + '개라 반영하지 않았어요');
+    }
+    return rows;
+  }
+
+  /* CSV를 tries만큼 먼저 다시 시도하고, 그래도 안 될 때만 gviz. 둘 다 validate를 통과해야 한다. */
+  async function loadCsvThenGviz(csvFn, gvizFn, opts) {
+    opts = opts || {};
+    const validate = opts.validate || function () {};
+    try {
+      const rows = await loadRowsRetry(async function (i) {
+        const r = await csvFn(i);
+        if (!r || !r.length) throw new Error('빈 응답');
+        return r;
+      }, opts);
+      validate(rows);
+      return rows;
+    } catch (e) { /* gviz로 넘어간다 */ }
+    const rows = await gvizFn();
+    if (!rows || !rows.length) throw new Error('불러오기 실패');
+    validate(rows);
+    rows.viaFallback = true;
+    return rows;
+  }
+
   async function loadRowsRetry(loadOnce, opts) {
     const tries = (opts && opts.tries) || 3;
     const backoffs = (opts && opts.backoffs) || [400, 900];
@@ -1433,6 +1485,8 @@
     missingHeaderError: missingHeaderError,
     tryCsvThenGviz: tryCsvThenGviz,
     loadRowsRetry: loadRowsRetry,
+    loadCsvThenGviz: loadCsvThenGviz,
+    checkBankRows: checkBankRows,
     syncFailureView: syncFailureView,
     hhmmFromCache: hhmmFromCache,
     seoulYmd: seoulYmd,

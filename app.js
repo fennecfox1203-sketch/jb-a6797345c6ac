@@ -1289,6 +1289,8 @@ function minusWon(n) {
     try {
       const r = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=' + gid + '&t=' + Date.now(), {
         cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'follow',
         signal: ctrl ? ctrl.signal : undefined
       });
       if (!r.ok) throw new Error(name + ' 불러오기 실패');
@@ -1353,14 +1355,22 @@ function minusWon(n) {
       clearTimeout(tm);
     }
   }
+  function validatorFor(name) {
+    return name === '통장거래내역' ? J.checkBankRows : function () {};
+  }
   function fetchSheetRows(name) {
-    return J.loadRowsRetry(function () {
-      return J.tryCsvThenGviz(function () { return fetchCsvOnce(name); }, function () { return fetchGvizFlexible(name); });
-    }, { tries: FETCH_TRIES, backoffs: FETCH_BACKOFF_MS }).catch(function (err) {
+    const validate = validatorFor(name);
+    return J.loadCsvThenGviz(function () { return fetchCsvOnce(name); }, function () { return fetchGvizFlexible(name); },
+      { tries: FETCH_TRIES, backoffs: FETCH_BACKOFF_MS, validate: validate }).catch(function (err) {
+      if (err && err.code === 'partial-data') throw err;
       return discoverSheetTitles().then(function (titles) {
         const picked = J.pickSheetTitle(titles, name);
         if (!picked || J.sheetTitleVariants(name).indexOf(picked) >= 0) throw err;
-        return fetchSheetRowsGviz(picked);
+        return fetchSheetRowsGviz(picked).then(function (rows) {
+          validate(rows);
+          rows.viaFallback = true;
+          return rows;
+        });
       });
     });
   }
@@ -1411,7 +1421,8 @@ function minusWon(n) {
       try { localStorage.setItem('jangbuCache', JSON.stringify(nd)); } catch (e) {}
       loadNote = null;
       showBanner('');
-      setSyncStatus('시트 최신 ' + nd.syncedAt);
+      const viaFallback = pack.some(function (r) { return r && r.viaFallback; });
+      setSyncStatus('시트 최신 ' + nd.syncedAt + (viaFallback ? ' (대체 경로)' : ''));
     } catch (e) {
       showSyncFailure(e);
     } finally {
