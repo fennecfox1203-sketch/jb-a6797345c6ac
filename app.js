@@ -548,7 +548,7 @@ function minusWon(n) {
         c = next.toISOString().slice(0, 10);
       }
       p.innerHTML = backBtn('backSales', '← 목표')
-        + '<div class="card stat-tiles"><div class="cal-head"><div><h2>1차 목표 디데이</h2><div class="hint">기한 2026.12.31 · 월 교습비 1,000만</div></div><div class="dday">' + ddayLabel + '</div></div><div class="metric"><span class="n">지난 날</span><span class="a warn">' + gone + '일</span></div><div class="metric"><span class="n">남은 날</span><span class="a">' + Math.max(0, dday) + '일</span></div></div>'
+        + '<div class="card stat-tiles"><div class="cal-head"><div><h2>1차 목표 디데이</h2><div class="hint">기한 2026.12.31 · 월 교습비 1,000만</div></div><div class="dday">' + ddayLabel + '</div></div><div class="stat-row"><div class="metric"><span class="n">지난 날</span><span class="a warn">' + gone + '일</span></div><div class="metric"><span class="n">남은 날</span><span class="a">' + Math.max(0, dday) + '일</span></div></div></div>'
         + '<div class="card cal-board">' + (months.map(function (ym) { return calendarHtml(ym, today, J.SALES_DEADLINE); }).join('') || emptyBox('기한이 지났습니다'))
         + '<div class="cal-legend"><span>지난 날</span><span>남은 날</span><span>목표일</span></div></div>';
       $('backSales').onclick = function () { state.salesView = 'list'; render(); };
@@ -686,7 +686,7 @@ function minusWon(n) {
     }
 
     p.innerHTML = '<div class="goal-grid"><button type="button" class="card go" id="curFeeCard"><div class="hint">이번 달 교습비 · ' + esc(J.koShortYm(cur)) + '</div><div class="hero" style="color:var(--fee)">' + J.won(curSales) + '</div><div class="hint">1차 목표 ' + J.won(J.SALES_GOAL_1) + ' · ' + pct + '%</div><div class="prog"><span style="width:' + pct + '%"></span></div><div class="hint" style="margin-top:8px">' + (gap > 0 ? '1차 목표까지 ' + J.won(gap) : '1차 목표 초과 ' + J.won(-gap)) + '</div><div class="hint">도넛 상세</div></button><button type="button" class="card go" id="ddayCard"><div class="hint">1차 목표 1,000만</div><div class="dday">' + ddayLabel + '</div><div class="hint">2026.12.31까지</div><div class="hint" style="margin-top:10px">기준은 교습비 납부 합계</div><div class="hint">디데이 달력</div></button></div>'
-      + '<div class="split">'
+      + '<div class="split wide-pair">'
       + chartCard({ id: 'salesChart', scrollId: 'salesHomeScroll', summary: true, hint: '최근 9개월 · 누르면 전체', svg: chart.svg, legend: [
         { color: 'var(--fee)', label: '이번 달' }, { color: 'var(--exp)', label: '미납 있는 달' }
       ] })
@@ -786,7 +786,7 @@ function minusWon(n) {
       const parts = J.monthParts(DATA, state.month);
       const filt = function (key, label) { return '<button type="button" data-f="' + key + '" class="' + (state.dirFilt === key ? 'on' : '') + '">' + label + '</button>'; };
       p.innerHTML = backBtn('backM', '← 월 목록')
-        + '<div class="card stat-tiles"><h2>' + esc(J.longYmLabel(m.ym)) + '</h2><div class="metric"><span class="n">수입</span><span class="a inc">' + J.won(m.income) + '</span></div><div class="metric"><span class="n">지출</span><span class="a ' + ((m.expense || 0) < 0 ? 'inc' : 'exp') + '">' + J.won(m.expense) + '</span></div><div class="metric"><span class="n">순이익</span><span class="a">' + J.won((Number(m.income) || 0) - (Number(m.expense) || 0)) + '</span></div><div class="metric"><span class="n">교습비 · 통장</span><span class="a fee">' + J.won(m.fee) + '</span></div><div class="hint">교습비는 중분류 또는 세부분류가 교습비인 수입입니다. 순이익은 수입에서 지출을 뺀 값입니다.</div></div>'
+        + '<div class="card"><h2>' + esc(J.longYmLabel(m.ym)) + '</h2><div class="stat-row"><div class="metric"><span class="n">수입</span><span class="a inc">' + J.won(m.income) + '</span></div><div class="metric"><span class="n">지출</span><span class="a ' + ((m.expense || 0) < 0 ? 'inc' : 'exp') + '">' + J.won(m.expense) + '</span></div><div class="metric"><span class="n">순이익</span><span class="a">' + J.won((Number(m.income) || 0) - (Number(m.expense) || 0)) + '</span></div><div class="metric"><span class="n">교습비 · 통장</span><span class="a fee">' + J.won(m.fee) + '</span></div></div><div class="hint">교습비는 중분류 또는 세부분류가 교습비인 수입입니다. 순이익은 수입에서 지출을 뺀 값입니다.</div></div>'
         + '<div class="split">'
         + donutBlock('지출 비중', parts.exp.kids || [], 1)
         + donutBlock('수입 비중', parts.inc.kids || [], 0)
@@ -986,7 +986,7 @@ function minusWon(n) {
       const unpaid = J.unpaidVisible(DATA, state.feeMonth, ex);
       const unpaidAmt = unpaid.reduce(function (a, s) { return a + (s.expected || 0); }, 0);
       const open = J.isFeeMonthOpen(state.feeMonth);
-      p.innerHTML = seg + '<div class="card stat-tiles"><h2>납부대상 ' + esc(J.shortYm(state.feeMonth)) + '</h2><div class="metric"><span class="n">미납</span><span class="a warn">' + (open ? unpaid.length + '명 · ' + J.won(unpaidAmt) : '아직 시작 전') + '</span></div><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || 0) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div></div>'
+      p.innerHTML = seg + '<div class="card"><h2>납부대상 ' + esc(J.shortYm(state.feeMonth)) + '</h2><div class="stat-row"><div class="metric"><span class="n">미납</span><span class="a warn">' + (open ? unpaid.length + '명 · ' + J.won(unpaidAmt) : '아직 시작 전') + '</span></div><div class="metric"><span class="n">납부</span><span class="a fee">' + (block.paidCount || 0) + '명 · ' + J.won(block.paidTotal || 0) + '</span></div></div></div>'
         + '<div class="filt"><button type="button" data-ff="unpaid" class="' + (state.feeFilt === 'unpaid' ? 'on warn' : '') + '">미납 ' + unpaid.length + '</button><button type="button" data-ff="paid" class="' + (state.feeFilt === 'paid' ? 'on ok' : '') + '">납부 ' + (block.paidCount || 0) + '</button></div>'
         + '<input class="search" id="qFee" placeholder="학생·학년 검색" aria-label="학생·학년 검색" value="' + esc(state.q || '') + '"/>'
         + '<div class="card pair-list">' + (list.length ? list.map(function (s) {
@@ -1059,10 +1059,10 @@ function minusWon(n) {
         return '<button type="button" class="line stu-flow-row" data-ym="' + x.ym + '"><div><div>' + esc(J.shortYm(x.ym)) + '</div><div class="m">재원 ' + x.enrolled + ' · 퇴소 ' + (x.withdrawn || 0) + '</div></div><div class="a"><span style="color:var(--inc)">+' + x.entered + '</span> <span style="color:var(--exp)">−' + x.left + '</span></div></button>';
       }).join('');
       p.innerHTML = backBtn('backStuChart', '← 학생')
-        + '<div class="card stat-tiles"><h2>재원·신규·퇴소</h2><div class="hint">전월까지. 신규는 이번 달 재원에 있고 전달 재원에는 없는 학생. 퇴소는 전달 재원에는 있고 이번 달 재원에는 없는 학생. 재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달부터 유예가 없습니다.</div>'
-        + '<div class="metric"><span class="n">최근 재원</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
+        + '<div class="card"><h2>재원·신규·퇴소</h2><div class="hint">전월까지. 신규는 이번 달 재원에 있고 전달 재원에는 없는 학생. 퇴소는 전달 재원에는 있고 이번 달 재원에는 없는 학생. 재원은 그달 납부, 또는 납부 공백이 3개월 미만인 유예입니다. 시트에 퇴소로 적힌 학생은 마지막 납부 다음 달부터 유예가 없습니다.</div>'
+        + '<div class="stat-row"><div class="metric"><span class="n">최근 재원</span><span class="a fee">' + (last ? last.enrolled + '명' : '—') + '</span></div>'
         + '<div class="metric"><span class="n">기간 신규</span><span class="a inc">' + totE + '명</span></div>'
-        + '<div class="metric"><span class="n">기간 퇴소</span><span class="a exp">' + totL + '명</span></div></div>'
+        + '<div class="metric"><span class="n">기간 퇴소</span><span class="a exp">' + totL + '명</span></div></div></div>'
         + chartCard({ id: 'stuEnrollDetailChart', scrollId: 'stuEnrollScroll', summary: false, hint: '큰 막대는 재원, 안쪽 막대는 신규·퇴소 · 좌우로 밀기 · 누르면 명단', svg: chart.svg, legend: [
           { color: 'var(--fee)', label: '재원' }, { color: 'var(--inc)', label: '신규' }, { color: 'var(--exp)', label: '퇴소' }
         ] })
@@ -1166,7 +1166,7 @@ function minusWon(n) {
       return '<button type="button" class="stu-card" data-name="' + esc(name) + '"><div class="top"><span class="name">' + esc(name) + '</span><span class="badge ' + cls + '">' + tag + '</span></div><div class="meta">' + esc(meta) + '</div></button>';
     }
     p.innerHTML = backBtn('backStuFlow', state.stuView === 'chartDetail' ? '← 그래프' : '← 학생')
-      + '<div class="card stat-tiles"><h2>' + esc(J.shortYm(state.stuFlowYm)) + ' 신규·퇴소</h2><div class="metric"><span class="n">신규</span><span class="a inc">' + row.entered + '명</span></div><div class="metric"><span class="n">퇴소</span><span class="a exp">' + row.left + '명</span></div></div>'
+      + '<div class="card"><h2>' + esc(J.shortYm(state.stuFlowYm)) + ' 신규·퇴소</h2><div class="stat-row"><div class="metric"><span class="n">신규</span><span class="a inc">' + row.entered + '명</span></div><div class="metric"><span class="n">퇴소</span><span class="a exp">' + row.left + '명</span></div></div></div>'
       + '<div class="seg" id="segStuFlow">' + yms.slice().reverse().map(function (ym) { return '<button type="button" data-ym="' + ym + '" class="' + (ym === state.stuFlowYm ? 'on' : '') + '">' + esc(J.shortYm(ym)) + '</button>'; }).join('') + '</div>'
       + '<h2 class="sec-title" style="color:var(--inc)">신규 ' + row.entered + '</h2>'
       + '<div class="tile-grid dense">' + (row.enteredNames.length ? row.enteredNames.map(function (n) { return person(n, 'enter'); }).join('') : emptyBox('이달 신규 없음')) + '</div>'
@@ -1211,7 +1211,7 @@ function minusWon(n) {
     p.innerHTML = uploadCard()
       + '<div class="hint" style="margin-bottom:10px">구글 시트에 있는 거래입니다. 분류 수정은 시트에서 합니다.</div>'
       + '<div class="seg" id="segBank">' + months.map(function (ym) { return '<button type="button" data-ym="' + ym + '" class="' + (ym === state.bankMonth ? 'on' : '') + '">' + esc(J.shortYm(ym)) + '</button>'; }).join('') + '</div>'
-      + '<div class="card stat-tiles"><h2>' + esc(J.shortYm(state.bankMonth)) + ' 합계</h2><div class="metric"><span class="n">수입 · ' + sumLines.filter(function (x) { return x.dir === '수입'; }).length + '건</span><span class="a inc">' + J.won(sumInc) + '</span></div><div class="metric"><span class="n">지출 · ' + sumLines.filter(function (x) { return x.dir === '지출'; }).length + '건</span><span class="a exp">' + J.won(sumExp) + '</span></div><div class="metric"><span class="n">전체 · ' + sumLines.length + '건</span><span class="a">' + J.won(sumInc + sumExp) + '</span></div></div>'
+      + '<div class="card"><h2>' + esc(J.shortYm(state.bankMonth)) + ' 합계</h2><div class="stat-row"><div class="metric"><span class="n">수입 · ' + sumLines.filter(function (x) { return x.dir === '수입'; }).length + '건</span><span class="a inc">' + J.won(sumInc) + '</span></div><div class="metric"><span class="n">지출 · ' + sumLines.filter(function (x) { return x.dir === '지출'; }).length + '건</span><span class="a exp">' + J.won(sumExp) + '</span></div><div class="metric"><span class="n">전체 · ' + sumLines.length + '건</span><span class="a">' + J.won(sumInc + sumExp) + '</span></div></div></div>'
       + '<div class="filt">' + filt('all', '전체') + filt('inc', '수입') + filt('exp', '지출') + '</div>'
       + '<input class="search" id="bankQ" placeholder="학생·메모·분류 검색" aria-label="학생·메모·분류 검색" value="' + esc(state.q) + '"/>'
       + '<div class="card txn"><div class="txn-head" aria-hidden="true"><span>내용</span><span>분류</span><span>날짜</span><span class="num">금액</span></div><div class="hint">거래 ' + lines.length + '건</div>' + (lines.length ? lines.map(function (l) {

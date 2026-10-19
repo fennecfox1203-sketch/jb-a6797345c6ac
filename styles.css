@@ -514,7 +514,7 @@ h1 {
     align-items: start;
     margin-top: 18px;
   }
-  .stage { min-width: 0; }
+  .stage { min-width: 0; container-type: inline-size; }
   .panel { margin-top: 0; }
 
   .tabs {
@@ -557,6 +557,10 @@ h1 {
     margin-bottom: 16px;
   }
   .split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .split.wide-pair { grid-template-columns: minmax(0, 1fr); }
+  @container (min-width: 920px) {
+    .split.wide-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   .tile-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
   .tile-grid.dense { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .row-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -580,26 +584,22 @@ h1 {
   .cal-board .cal-legend { grid-column: 1 / -1; }
   .cal-month { margin-bottom: 0; }
 
-  .stat-tiles {
+  .stat-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px;
-    align-items: stretch;
+    margin-top: 4px;
   }
-  .stat-tiles > h2,
-  .stat-tiles > .cal-head,
-  .stat-tiles > .hint { grid-column: 1 / -1; }
-  .stat-tiles > .metric {
+  .stat-row > .metric {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
     border: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
     border-radius: 12px;
     padding: 12px 14px;
     background: var(--card2);
   }
-  .stat-tiles > .metric .a { text-align: left; }
+  .stat-row > .metric .a { text-align: left; }
 
   .pair-list {
     display: grid;
@@ -613,17 +613,17 @@ h1 {
   .split:empty { display: none; margin: 0; }
 
   .sheet .month-row {
-    grid-template-columns: minmax(108px, 0.8fr) minmax(0, 1.2fr) minmax(120px, 0.7fr);
-    gap: 18px;
+    grid-template-columns: 5rem minmax(0, 1fr) auto;
+    gap: 8px 16px;
     padding: 13px 8px;
-    font-size: 1.02rem;
+    font-size: 1rem;
   }
   .sheet .month-row.head {
     font-size: .82rem;
     letter-spacing: 0.01em;
     padding-bottom: 8px;
   }
-  .sheet .month-row > span { overflow-wrap: normal; }
+  .sheet .month-row > span { overflow-wrap: normal; white-space: nowrap; }
 
   .txn-head {
     display: grid;
