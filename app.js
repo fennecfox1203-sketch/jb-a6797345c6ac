@@ -1279,7 +1279,8 @@ function minusWon(n) {
   }
   const FETCH_TRIES = 3;
   const FETCH_TIMEOUT_MS = 15000;
-  const FETCH_BACKOFF_MS = [400, 900];
+  const FETCH_BACKOFF_MS = [1000, 3000];
+  const AUTO_RETRY_MS = [5000, 15000, 30000, 60000, 120000, 300000];
   let _gvizSeq = 0;
   async function fetchCsvOnce(name) {
     const gid = SHEET_GIDS[name];
@@ -1299,6 +1300,7 @@ function minusWon(n) {
       return J.parseCsv(t);
     } catch (e) {
       if (e && e.name === 'AbortError') throw new Error(name + ' 응답 없음');
+      if (e && e.name === 'TypeError') throw new Error(name + ' 연결 실패 (네트워크)');
       throw e;
     } finally {
       clearTimeout(tm);
@@ -1398,13 +1400,37 @@ function minusWon(n) {
     showBanner(view.banner || '시트를 불러오지 못했어요', 'err');
   }
 
-  async function syncFromSheet(_silent) {
+  let syncInFlight = null;
+  let autoRetryTimer = null;
+  let autoRetryCount = 0;
+  function scheduleAutoRetry() {
+    clearTimeout(autoRetryTimer);
+    const wait = AUTO_RETRY_MS[Math.min(autoRetryCount, AUTO_RETRY_MS.length - 1)];
+    autoRetryCount++;
+    autoRetryTimer = setTimeout(function () {
+      if (document.visibilityState === 'hidden') return; /* 다시 보일 때 visibilitychange가 부른다 */
+      syncFromSheet(true);
+    }, wait);
+  }
+  function syncFromSheet(silent) {
+    if (syncInFlight) return syncInFlight;
+    clearTimeout(autoRetryTimer);
+    syncInFlight = syncOnce(silent).then(function (ok) {
+      if (ok) autoRetryCount = 0;
+      else scheduleAutoRetry();
+    }).finally(function () { syncInFlight = null; });
+    return syncInFlight;
+  }
+
+  async function syncOnce(_silent) {
+    let ok = false;
     const btn = $('syncBtn');
     if (btn) { btn.disabled = true; btn.textContent = '동기화 중'; }
     showBanner('');
     setSyncStatus('구글 시트에서 불러오는 중');
     try {
       if (!SHEET_ID) throw new Error('장부 주소가 올바르지 않아요. 받은 주소 전체(# 뒤까지)로 다시 열어 주세요.');
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('인터넷 연결이 없어요 (연결되면 자동으로 다시 불러와요)');
       const pack = await Promise.all([
         fetchSheetRows('통장거래내역'),
         fetchSheetRows('학생 명단'),
@@ -1421,6 +1447,7 @@ function minusWon(n) {
       try { localStorage.setItem('jangbuCache', JSON.stringify(nd)); } catch (e) {}
       loadNote = null;
       showBanner('');
+      ok = true;
       const viaFallback = pack.some(function (r) { return r && r.viaFallback; });
       setSyncStatus('시트 최신 ' + nd.syncedAt + (viaFallback ? ' (대체 경로)' : ''));
     } catch (e) {
@@ -1430,6 +1457,7 @@ function minusWon(n) {
       if (btn) { btn.disabled = false; btn.textContent = '새로고침'; }
       render();
     }
+    return ok;
   }
 
   function bootDemo() {
@@ -1475,8 +1503,16 @@ function minusWon(n) {
   render();
   if (DEMO) bootDemo();
   else {
+    /* Mac이 잠자기에서 깨면 화면이 먼저 보이고 네트워크는 조금 늦게 붙는다. 잠깐 기다렸다가 부른다. */
+    let wakeTimer = null;
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') syncFromSheet(true);
+      if (document.visibilityState !== 'visible') return;
+      clearTimeout(wakeTimer);
+      wakeTimer = setTimeout(function () { syncFromSheet(true); }, 1500);
+    });
+    window.addEventListener('online', function () {
+      clearTimeout(wakeTimer);
+      wakeTimer = setTimeout(function () { autoRetryCount = 0; syncFromSheet(true); }, 1000);
     });
     syncFromSheet(true);
   }

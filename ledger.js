@@ -488,6 +488,7 @@
   async function loadCsvThenGviz(csvFn, gvizFn, opts) {
     opts = opts || {};
     const validate = opts.validate || function () {};
+    let csvErr = null;
     try {
       const rows = await loadRowsRetry(async function (i) {
         const r = await csvFn(i);
@@ -496,9 +497,16 @@
       }, opts);
       validate(rows);
       return rows;
-    } catch (e) { /* gviz로 넘어간다 */ }
-    const rows = await gvizFn();
-    if (!rows || !rows.length) throw new Error('불러오기 실패');
+    } catch (e) { csvErr = e; /* gviz로 넘어간다 */ }
+    let rows;
+    try {
+      rows = await gvizFn();
+    } catch (e) {
+      /* 둘 다 실패면 CSV 쪽 이유가 더 정확하다 (gviz는 탭 이름 변형별 실패만 남는다) */
+      if (e && e.code === 'partial-data') throw e;
+      throw csvErr || e;
+    }
+    if (!rows || !rows.length) throw csvErr || new Error('불러오기 실패');
     validate(rows);
     rows.viaFallback = true;
     return rows;

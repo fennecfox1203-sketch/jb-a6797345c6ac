@@ -45,3 +45,10 @@ test('CSV가 다 실패하고 gviz가 온전하면 받아들이고 대체 경로
 test('나눠 적은 줄(A~H 빈칸)과 빈 줄은 날짜 누락으로 세지 않는다', () => {
   assert.doesNotThrow(() => J.checkBankRows(FULL));
 });
+
+test('CSV와 gviz가 모두 실패하면 CSV 쪽 이유를 보여 준다', async () => {
+  await assert.rejects(
+    J.loadCsvThenGviz(async () => { throw new Error('학생 명단 연결 실패 (네트워크)'); }, async () => { throw new Error('학생명단 불러오기 실패'); }, opts({ validate: () => {} })),
+    /학생 명단 연결 실패/
+  );
+});
