@@ -461,13 +461,15 @@
 
   function checkBankRows(rows) {
     rows = rows || [];
+    const dateNames = ['거래일자', '거래일', '날짜', '일자', '승인일', '승인일자'];
     let hi = -1;
-    for (let i = 0; i < Math.min(rows.length, 10); i++) {
-      if ((rows[i] || []).some(function (c) { return _s(c).trim() === '거래일자'; })) { hi = i; break; }
+    let dateIdx = -1;
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+      const idx = findHeaderCol(rows[i] || [], dateNames);
+      if (idx >= 0) { hi = i; dateIdx = idx; break; }
     }
     if (hi < 0) throw partialDataError('통장거래내역 일부만 받아져서(머리글 없음) 반영하지 않았어요');
     const header = rows[hi].map(function (c) { return _s(c).trim(); });
-    const dateIdx = header.indexOf('거래일자');
     const outIdx = header.findIndex(function (h) { return h.indexOf('출금') === 0; });
     const inIdx = header.findIndex(function (h) { return h.indexOf('입금') === 0; });
     let total = 0, bad = 0;
@@ -549,20 +551,164 @@
     return '';
   }
 
+  /* gviz(/gviz/tq)는 통장 탭 전체를 주지 않는다. 숨긴 행과 머리글이 빠지고
+     최근 날짜 칸이 빈 일부만 온다. 그 결과를 성공으로 저장하면 새로고침이
+     된 것처럼 보이면서 최신 거래가 사라진다. CSV 내보내기만 반영한다. */
+  function sheetExportUrl(id, gid, nonce, base) {
+    const root = base || ('https://docs.google.com/spreadsheets/d/' + encodeURIComponent(id) + '/export');
+    const join = root.indexOf('?') >= 0 ? '&' : '?';
+    return root + join + 'format=csv&gid=' + encodeURIComponent(String(gid))
+      + '&t=' + encodeURIComponent(String(nonce));
+  }
+
+  function classifyFailure(code, message) {
+    return { ok: false, code: code, message: message };
+  }
+
+  function classifySheetText(text, contentType, status) {
+    const type = String(contentType || '').toLowerCase();
+    const body = String(text == null ? '' : text);
+    const head = body.slice(0, 1200).toLowerCase();
+    const htmlType = type.indexOf('text/html') >= 0 || type.indexOf('xhtml') >= 0;
+    const htmlBody = /^\s*<(!doctype|html)\b/i.test(body) || head.indexOf('<html') >= 0;
+    if (status === 401 || status === 403 || (htmlBody && (head.indexOf('accounts.google.com') >= 0 || head.indexOf('servicelogin') >= 0))) {
+      return classifyFailure('login', '구글 로그인·권한 화면이 와서 시트를 읽지 못했어요. 링크가 있는 사람이 볼 수 있게 공유돼 있는지 확인해 주세요.');
+    }
+    if (htmlType || htmlBody) {
+      if (head.indexOf('sorry') >= 0 || head.indexOf('unable to open') >= 0 || head.indexOf('temporarily') >= 0) {
+        return classifyFailure('sorry', '구글이 ‘Sorry’ 안내 페이지를 보냈어요. 시트 내용이 아니라서 화면에 반영하지 않았어요.');
+      }
+      return classifyFailure('html', '구글이 시트가 아닌 HTML 페이지를 보냈어요. 저장돼 있던 숫자를 새 자료인 것처럼 바꾸지 않았어요.');
+    }
+    if (status && status >= 400) {
+      return classifyFailure('http', '구글이 오류 ' + status + '을 보냈어요. 시트 내용이 아니라서 반영하지 않았어요.');
+    }
+    if (!body.trim()) return classifyFailure('empty', '응답이 비어 있어요. 반영하지 않았어요.');
+    if (type && type.indexOf('csv') < 0 && type.indexOf('text/plain') < 0 && type.indexOf('octet-stream') < 0
+        && type.indexOf('application/vnd.ms-excel') < 0 && type.indexOf('text/comma-separated-values') < 0) {
+      return classifyFailure('type', 'CSV가 아닌 형식(' + type.split(';')[0] + ')이라 반영하지 않았어요.');
+    }
+    return { ok: true, text: body };
+  }
+
+  function assertSheetMarker(rows, marker, label) {
+    const limit = Math.min((rows || []).length, 15);
+    for (let i = 0; i < limit; i++) {
+      if ((rows[i] || []).some(function (c) { return _s(c) === marker; })) return rows;
+    }
+    const err = new Error((label || '시트') + '에서 머리글 ‘' + marker + '’이 없어 잘린 응답으로 보고 반영하지 않았어요.');
+    err.code = 'partial-data';
+    throw err;
+  }
+
+  function sheetError(name, code, message) {
+    const err = new Error((name ? name + ': ' : '') + message);
+    err.code = code;
+    return err;
+  }
+
+  async function readOneCsv(fetchImpl, url, spec) {
+    spec = spec || {};
+    const name = spec.name || '시트';
+    const timeoutMs = spec.timeoutMs || 15000;
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const tm = setTimeout(function () { if (ctrl) ctrl.abort(); }, timeoutMs);
+    try {
+      const r = await fetchImpl(url, {
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'follow',
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      const text = await r.text();
+      const contentType = r.headers && r.headers.get ? (r.headers.get('content-type') || '') : '';
+      const judged = classifySheetText(text, contentType, r.status);
+      if (!judged.ok) throw sheetError(name, judged.code, judged.message);
+      const rows = parseCsv(judged.text);
+      const markers = (spec.markerAny && spec.markerAny.length) ? spec.markerAny : (spec.marker ? [spec.marker] : []);
+      if (markers.length) {
+        const want = markers.map(headerKey);
+        let found = false;
+        const limit = Math.min(rows.length, 15);
+        for (let i = 0; i < limit && !found; i++) {
+          found = (rows[i] || []).some(function (c) { return want.indexOf(headerKey(c)) >= 0; });
+        }
+        if (!found) assertSheetMarker(rows, markers[0], name);
+      }
+      if (spec.validate) spec.validate(rows);
+      return rows;
+    } catch (e) {
+      if (e && typeof e.code === 'string') throw e;
+      if (e && e.name === 'AbortError') throw sheetError(name, 'timeout', '응답이 늦어 끊었어요. 다시 시도합니다.');
+      throw sheetError(name, 'network', '연결이 끊겼거나 브라우저가 구글 응답을 막았어요. 다시 시도합니다.');
+    } finally {
+      clearTimeout(tm);
+    }
+  }
+
+  async function loadFreshCsv(spec) {
+    spec = spec || {};
+    const tries = spec.tries || 3;
+    const backoffs = spec.backoffs || [400, 900];
+    const sleep = spec.sleep || delayMs;
+    const fetchImpl = spec.fetch;
+    let lastErr;
+    for (let i = 0; i < tries; i++) {
+      const nonce = typeof spec.now === 'function' ? spec.now(i) : (Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 8));
+      const url = sheetExportUrl(spec.id, spec.gid, nonce, spec.urlBase);
+      try {
+        return await readOneCsv(fetchImpl, url, spec);
+      } catch (e) {
+        lastErr = e;
+        if (i < tries - 1) await sleep(backoffs[i] != null ? backoffs[i] : backoffs[backoffs.length - 1] || 0);
+      }
+    }
+    throw lastErr || sheetError(spec.name, 'empty', '시트를 불러오지 못했어요.');
+  }
+
+  function ledgerTxnCount(data) {
+    const md = data && data.monthDetails || {};
+    let n = 0;
+    Object.keys(md).forEach(function (k) { n += (md[k] || []).length; });
+    return n;
+  }
+
+  /* 잘린 응답이 성공처럼 저장돼 최신 거래가 사라지지 않게 한다. */
+  function refuseShorterLedger(prev, next) {
+    const before = ledgerTxnCount(prev);
+    const after = ledgerTxnCount(next);
+    if (before >= 40 && after * 2 < before) {
+      const err = new Error('새로 받은 거래가 ' + after + '건이라 저장돼 있던 ' + before + '건의 절반도 안 돼요. 잘린 응답이라 덮지 않았어요.');
+      err.code = 'partial-data';
+      throw err;
+    }
+    return next;
+  }
+
+  function resolveSheetId(hash, stored) {
+    const m = /(?:^|[#&])k=([A-Za-z0-9_-]{20,})/.exec(String(hash || ''));
+    if (m) return { id: m[1], source: 'hash' };
+    const s = String(stored || '').trim();
+    if (/^[A-Za-z0-9_-]{20,}$/.test(s)) return { id: s, source: 'storage' };
+    return { id: '', source: '' };
+  }
+
   function syncFailureView(err, cache) {
     const has = !!(cache && cache.monthDetails && Object.keys(cache.monthDetails).length);
+    const why = (err && err.message) ? String(err.message) : '시트를 불러오지 못했어요';
     if (err && err.code === 'missing-header') {
-      return { kind: 'schema', banner: err.message, data: has ? cache : null };
+      return { kind: 'schema', banner: why, data: has ? cache : null };
     }
     if (has) {
       const hhmm = hhmmFromCache(cache);
-      const banner = hhmm
-        ? ('최신 자료를 불러오지 못해 ' + hhmm + ' 기준 자료를 보여 줘요')
-        : '최신 자료를 불러오지 못해 이전에 저장한 자료를 보여 줘요';
-      return { kind: 'stale', banner: banner, data: cache };
+      const when = hhmm ? (hhmm + '에 마지막으로 성공한 자료') : '이전에 저장한 자료';
+      return {
+        kind: 'stale',
+        banner: '최신 자료를 불러오지 못했어요. 이유: ' + why + ' ' + when + '를 남겨 두었고, 이번 응답으로 바꾸지 않았습니다. 자동으로 다시 시도합니다.',
+        data: cache
+      };
     }
-    const msg = (err && err.message) ? String(err.message) : '시트를 불러오지 못했어요';
-    return { kind: 'empty', banner: msg, data: null };
+    return { kind: 'empty', banner: why, data: null };
   }
 
   function sheetWidth(rows, least) {
@@ -1495,6 +1641,13 @@
     loadRowsRetry: loadRowsRetry,
     loadCsvThenGviz: loadCsvThenGviz,
     checkBankRows: checkBankRows,
+    sheetExportUrl: sheetExportUrl,
+    classifySheetText: classifySheetText,
+    assertSheetMarker: assertSheetMarker,
+    loadFreshCsv: loadFreshCsv,
+    ledgerTxnCount: ledgerTxnCount,
+    refuseShorterLedger: refuseShorterLedger,
+    resolveSheetId: resolveSheetId,
     syncFailureView: syncFailureView,
     hhmmFromCache: hhmmFromCache,
     seoulYmd: seoulYmd,
