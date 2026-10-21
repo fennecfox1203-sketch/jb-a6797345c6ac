@@ -9,12 +9,40 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#0e141b">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>공부방 장부</title>
+<script>
+(function () {
+  var rev = '20261021g';
+  function go(live) {
+    live = String(live || '').replace(/^\uFEFF/, '').trim();
+    if (!/^[0-9A-Za-z]+$/.test(live) || live === rev) return;
+    var cur = new URL(location.href);
+    if (cur.searchParams.get('cv') === live) return;
+    cur.searchParams.set('cv', live);
+    location.replace(cur.pathname + cur.search + cur.hash);
+  }
+  var u = new URL(location.href);
+  if (!u.pathname.endsWith('/')) {
+    if (/\.html?$/i.test(u.pathname)) u.pathname = u.pathname.replace(/[^/]*$/, '');
+    else u.pathname += '/';
+  }
+  u.hash = '';
+  u.search = '';
+  u.pathname += 'rev.txt';
+  u.searchParams.set('t', String(Date.now()));
+  fetch(u.href, { cache: 'no-store', credentials: 'omit' }).then(function (r) {
+    return r.ok ? r.text() : '';
+  }).then(go).catch(function () {});
+})();
+</script>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-180.png" sizes="180x180">
 <link rel="icon" href="icon-512.png" sizes="512x512">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="styles.css?v=20261021f">
+<link rel="stylesheet" href="styles.css?v=20261021g">
 </head>
 <body>
 <div class="wrap">
@@ -25,6 +53,7 @@
     <div class="top-actions">
       <button type="button" class="icon-btn" id="syncBtn">새로고침</button>
       <span class="sync" id="syncStatus" role="status"></span>
+      <span class="sync app-rev" id="appRev">v20261021g</span>
     </div>
   </header>
   <div id="staleBanner" class="stale-banner" hidden role="status" aria-live="polite"></div>
@@ -56,9 +85,9 @@
   </div>
 </div>
 <div class="foot" id="foot"></div>
-<script src="ledger.js?v=20261021f"></script>
-<script src="demo.js?v=20261021f"></script>
-<script src="charts.js?v=20261021f"></script>
-<script src="app.js?v=20261021f"></script>
+<script src="ledger.js?v=20261021g"></script>
+<script src="demo.js?v=20261021g"></script>
+<script src="charts.js?v=20261021g"></script>
+<script src="app.js?v=20261021g"></script>
 </body>
 </html>

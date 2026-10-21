@@ -67,6 +67,7 @@ h1 {
 .subhead { margin: 4px 0 0; color: var(--muted); font-size: .92rem; font-weight: 600; }
 .top-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
 .sync { font-size: .75rem; color: var(--muted); text-align: right; max-width: 46vw; line-height: 1.35; }
+.app-rev { flex: 0 0 auto; max-width: none; white-space: nowrap; }
 .stale-banner {
   margin: 0 0 12px;
   padding: 10px 12px;

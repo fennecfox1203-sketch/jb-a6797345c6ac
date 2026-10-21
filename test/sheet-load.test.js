@@ -373,6 +373,74 @@ test('a failed bank tab still keeps leave that already arrived', function () {
   assert.equal(J.applyPartialTabs(prev, {}), null);
 });
 
+test('editor html is reread in the cookie-less frame, not gviz', async function () {
+  const shell = '<!DOCTYPE html><html><body>sheet app only</body></html>';
+  const frames = [];
+  const calls = [];
+  const rows = await J.loadFreshCsv({
+    id: 'fake-sheet',
+    gid: '9',
+    name: '통장거래내역',
+    marker: '거래일자',
+    validate: J.checkBankRows,
+    recoverRows: { col: 'AZ', size: 400, maxWindows: 2 },
+    tries: 1,
+    timeoutMs: 3000,
+    fetch: function (url) {
+      calls.push(url);
+      if (url.indexOf('gviz') >= 0 || url.indexOf('/u/') >= 0 || url.indexOf('range=') >= 0) throw new Error('unexpected');
+      return Promise.resolve(mockSheet(shell, 'text/html', 'https://docs.google.com/spreadsheets/d/fake-sheet/edit?gid=9'));
+    },
+    frameFetch: function (url) {
+      frames.push(url);
+      return { status: 200, url: url, text: FAKE_CSV, contentType: 'text/csv' };
+    }
+  });
+  assert.equal(rows[0][0], '거래일자');
+  assert.equal(frames.length, 1);
+  assert.match(frames[0], /^https:\/\/docs\.google\.com\/spreadsheets\/d\/fake-sheet\/export\?/);
+  assert.equal(calls.some(function (u) { return u.indexOf('gviz') >= 0; }), false);
+});
+
+test('plain export html tries account urls before row windows', async function () {
+  const calls = [];
+  const rows = await J.loadFreshCsv({
+    id: 'fake-sheet',
+    gid: '9',
+    name: '통장거래내역',
+    marker: '거래일자',
+    validate: J.checkBankRows,
+    recoverRows: { col: 'AZ', size: 400, maxWindows: 2 },
+    tries: 1,
+    backoffs: [0],
+    sleep: function () { return Promise.resolve(); },
+    now: function (i) { return 'acct-' + i; },
+    timeoutMs: 3000,
+    fetch: function (url) {
+      calls.push(url);
+      if (url.indexOf('gviz') >= 0) throw new Error('gviz');
+      if (url.indexOf('/u/1/') >= 0) return Promise.resolve(mockSheet(FAKE_CSV, 'text/csv', url));
+      return Promise.resolve(mockSheet('<!DOCTYPE html><html><body>sheet app only</body></html>', 'text/html', 'https://docs.google.com/spreadsheets/d/fake-sheet/edit'));
+    }
+  });
+  assert.equal(rows[1][0], '2026-10-02');
+  assert.equal(calls.some(function (u) { return u.indexOf('/spreadsheets/u/1/') >= 0; }), true);
+  assert.equal(calls.some(function (u) { return u.indexOf('range=') >= 0; }), false);
+  assert.equal(calls.some(function (u) { return u.indexOf('gviz') >= 0; }), false);
+});
+
+test('a newer rev opens an uncached url and does not reload the same rev', function () {
+  const href = 'https://fennecfox1203-sketch.github.io/jb-a6797345c6ac/#k=abcDEF1234567890_-zzzz';
+  assert.equal(J.freshBundleTarget(href, '20261021g', '20261021g\n'), '');
+  assert.equal(J.freshBundleTarget(href, '20261021f', '20261021g\n'), '/jb-a6797345c6ac/?cv=20261021g#k=abcDEF1234567890_-zzzz');
+  const already = 'https://fennecfox1203-sketch.github.io/jb-a6797345c6ac/?cv=20261021g#k=abcDEF1234567890_-zzzz';
+  assert.equal(J.freshBundleTarget(already, '20261021f', '20261021g'), '');
+  assert.equal(J.freshBundleTarget(href, '20261021g', 'not a rev'), '');
+  assert.equal(J.bundleRevUrl('https://host.example/jb-a6797345c6ac', '9'), 'https://host.example/jb-a6797345c6ac/rev.txt?t=9');
+  assert.equal(J.bundleRevUrl('https://host.example/jb-a6797345c6ac/', '9'), 'https://host.example/jb-a6797345c6ac/rev.txt?t=9');
+  assert.equal(J.bundleRevUrl('https://host.example/jb-a6797345c6ac/index.html?x=1#k=abc', '9'), 'https://host.example/jb-a6797345c6ac/rev.txt?t=9');
+});
+
 test('a network failure is a Korean error, not an empty success', async function () {
   await assert.rejects(function () {
     return J.loadFreshCsv({

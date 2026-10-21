@@ -1387,7 +1387,7 @@ function minusWon(n) {
     });
     return rows;
   }
-  const APP_REV = '20261021f';
+  const APP_REV = '20261021g';
   async function dropStaleClients() {
     let had = false;
     const root = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -1424,15 +1424,13 @@ function minusWon(n) {
   }
   async function ensureFreshBundle() {
     try {
-      const r = await fetch('index.html?t=' + Date.now(), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      const url = J.bundleRevUrl(location.href, Date.now());
+      if (!url) return false;
+      const r = await fetch(url, { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
       if (!r.ok) return false;
-      const text = await r.text();
-      const m = /app\.js\?v=([0-9A-Za-z]+)/.exec(text);
-      if (!m || m[1] === APP_REV) return false;
-      const guard = 'jangbuRev';
-      if (sessionStorage.getItem(guard) === m[1]) return false;
-      sessionStorage.setItem(guard, m[1]);
-      location.replace(location.pathname + location.search + location.hash);
+      const next = J.freshBundleTarget(location.href, APP_REV, await r.text());
+      if (!next) return false;
+      location.replace(next);
       return true;
     } catch (e) {
       return false;

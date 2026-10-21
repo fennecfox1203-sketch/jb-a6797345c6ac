@@ -726,10 +726,17 @@
     return rows;
   }
 
+  /* 우리가 만든 내보내기 주소만 쿠키 없는 프레임에 맡긴다. 응답 속 다른 주소는 받지 않는다. */
+  function isFrameFetchUrl(url) {
+    if (isAnonymousFileUrl(url)) return true;
+    return /^https:\/\/docs\.google\.com\/spreadsheets\/(?:u\/\d+\/)?d\/[A-Za-z0-9_-]+\/export\?[^\s"'<>]*$/i.test(String(url || ''));
+  }
+
   /* 샌드박스 iframe은 출처가 null이라 구글 로그인 쿠키를 보내지 않는다.
+     부모 창이 시트 화면 HTML을 받아도, 이 프레임이 같은 내보내기를 다시 받으면 CSV인 경우가 있다.
      파일 호스트는 그 요청에 전체 CSV를 주고, 어떤 출처나 읽게 허용한다. */
   function fetchViaAnonymousFrame(url, spec) {
-    if (!isAnonymousFileUrl(url)) return Promise.resolve(null);
+    if (!isFrameFetchUrl(url)) return Promise.resolve(null);
     if (spec && typeof spec.frameFetch === 'function') {
       return Promise.resolve(spec.frameFetch(url, spec)).then(function (got) { return got || null; });
     }
@@ -775,8 +782,11 @@
 
   async function readRecoveredCsv(fetchImpl, got, spec, err) {
     const next = fileCandidate(got);
-    if (isAnonymousFileUrl(next)) {
-      const framed = await fetchViaAnonymousFrame(next, spec);
+    /* 파일 주소가 없으면 방금 받은 내보내기 주소를 쿠키 없는 프레임으로 다시 받는다.
+       로그인 창의 시트 화면 HTML에는 파일 주소가 없다. */
+    const frameUrl = isAnonymousFileUrl(next) ? next : (isFrameFetchUrl(got && got.requestUrl) ? got.requestUrl : '');
+    if (frameUrl) {
+      const framed = await fetchViaAnonymousFrame(frameUrl, spec);
       if (framed && framed.text) {
         try {
           return rowsFromSheetBody(framed, spec);
@@ -786,7 +796,7 @@
         }
       }
     }
-    if (!next || next === (got && got.requestUrl)) throw err;
+    if (!isAnonymousFileUrl(next) || next === (got && got.requestUrl)) throw err;
     return rowsFromSheetBody(await fetchSheetText(fetchImpl, next, spec), spec);
   }
 
@@ -881,6 +891,30 @@
     return combined;
   }
 
+  function accountExportBase(id, n) {
+    return 'https://docs.google.com/spreadsheets/u/' + n + '/d/' + encodeURIComponent(id) + '/export';
+  }
+
+  /* 기본 주소가 시트 화면 HTML이면 계정 번호가 붙은 같은 내보내기를 한 번씩 더 받는다.
+     gviz는 통장 전체를 주지 않으므로 여기서도 쓰지 않는다. */
+  async function loadAccountExports(spec) {
+    let lastErr;
+    for (let n = 0; n <= 3; n++) {
+      try {
+        return await loadExportAttempts(Object.assign({}, spec, {
+          urlBase: accountExportBase(spec.id, n),
+          tries: 1,
+          accountPass: true
+        }), 'csv');
+      } catch (e) {
+        lastErr = e;
+        if (e && e.code === 'partial-data') throw e;
+        if (e && ['html', 'login', 'sorry', 'network', 'timeout', 'empty'].indexOf(e.code) < 0) throw e;
+      }
+    }
+    throw lastErr || sheetError(spec.name, 'html', '구글이 시트가 아닌 HTML 페이지를 보냈어요. 저장돼 있던 숫자를 새 자료인 것처럼 바꾸지 않았어요.');
+  }
+
   async function loadFreshCsv(spec) {
     spec = spec || {};
     let lastErr;
@@ -888,14 +922,54 @@
       return await loadExportAttempts(spec, 'csv');
     } catch (e) {
       lastErr = e;
-      if (!spec.recoverRows || !e || ['html', 'login', 'sorry'].indexOf(e.code) < 0) throw e;
+      if (!e || ['html', 'login', 'sorry'].indexOf(e.code) < 0) throw e;
     }
+    if (!spec.urlBase && !spec.accountPass) {
+      try {
+        return await loadAccountExports(spec);
+      } catch (e) {
+        lastErr = e;
+        const soft = e && ['html', 'login', 'sorry', 'network', 'timeout', 'empty'].indexOf(e.code) >= 0;
+        if (!spec.recoverRows || !soft) throw e || lastErr;
+      }
+    }
+    if (!spec.recoverRows) throw lastErr;
     try {
       return await loadByRowWindows(spec);
     } catch (e) {
       if (e && e.code === 'partial-data') throw e;
       throw lastErr || e;
     }
+  }
+
+  /* 깃허브 페이지는 index.html을 10분간 저장한다. 같은 주소로 다시 열면 옛 HTML이 남는다.
+     rev.txt가 더 새로우면 한 번도 저장되지 않은 ?cv= 주소로 연다. 이미 그 버전이면 반복하지 않는다. */
+  function bundleRevUrl(href, nonce) {
+    let u;
+    try { u = new URL(String(href || ''), 'https://placeholder.invalid/'); }
+    catch (e) { return ''; }
+    if (!u.pathname.endsWith('/')) {
+      if (/\.html?$/i.test(u.pathname)) u.pathname = u.pathname.replace(/[^/]*$/, '');
+      else u.pathname += '/';
+    }
+    u.pathname += 'rev.txt';
+    u.search = '';
+    u.hash = '';
+    if (nonce != null && nonce !== '') u.searchParams.set('t', String(nonce));
+    if (u.origin === 'https://placeholder.invalid') return u.pathname + u.search;
+    return u.origin + u.pathname + u.search;
+  }
+
+  function freshBundleTarget(href, embeddedRev, liveText) {
+    const live = String(liveText || '').replace(/^\uFEFF/, '').trim();
+    if (!/^[0-9A-Za-z]+$/.test(live)) return '';
+    if (live === String(embeddedRev || '')) return '';
+    let u;
+    try { u = new URL(String(href || ''), 'https://placeholder.invalid/'); }
+    catch (e) { return ''; }
+    if (u.searchParams.get('cv') === live) return '';
+    u.searchParams.set('cv', live);
+    return u.pathname + u.search + u.hash;
   }
 
   /* 통장이 실패해도 이미 받은 연차·휴원은 저장본 위에 얹는다. 통장 시각은 그대로 둔다. */
@@ -2070,6 +2144,8 @@
     classifySheetText: classifySheetText,
     assertSheetMarker: assertSheetMarker,
     loadFreshCsv: loadFreshCsv,
+    bundleRevUrl: bundleRevUrl,
+    freshBundleTarget: freshBundleTarget,
     applyPartialTabs: applyPartialTabs,
     ledgerTxnCount: ledgerTxnCount,
     refuseShorterLedger: refuseShorterLedger,
