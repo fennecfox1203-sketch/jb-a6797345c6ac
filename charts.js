@@ -172,11 +172,12 @@
   }
   function frame(nPoints, summary, tall) {
     const count = Math.max(nPoints, 1);
-    const H = summary ? (tall ? 460 : 440) : 330;
-    const padL = summary ? 74 : 54;
+    const compact = tall === 'compact';
+    const H = compact ? 228 : (summary ? (tall ? 460 : 440) : 330);
+    const padL = summary ? (compact ? 58 : 74) : 54;
     const padR = summary ? 16 : 16;
-    const padT = summary ? 64 : 40;
-    const padB = summary ? 52 : 44;
+    const padT = compact ? 28 : (summary ? 64 : 40);
+    const padB = compact ? 32 : (summary ? 52 : 44);
     const slot = summary ? 0 : 76;
     const W = summary ? 640 : padL + count * slot + padR;
     const plotW = summary ? (W - padL - padR) : count * slot;
@@ -345,13 +346,14 @@
 
   function salesBars(points, opts) {
     const summary = !!(opts && opts.summary);
+    const compact = !!(opts && opts.compact);
     const pts = points || [];
-    const f = frame(pts.length, summary, true);
+    const f = frame(pts.length, summary, compact ? 'compact' : true);
     const maxV = 15000000;
     const yAt = function (v) { return f.padT + f.plotH * (1 - Math.min(Math.max(v, 0), maxV) / maxV); };
     const y0 = yAt(0);
     const goals = [{ v: 10000000, label: '1,000만', color: 'var(--warn)' }, { v: 15000000, label: '1,500만', color: 'var(--inc)' }];
-    const goalFs = summary ? 13 : 12;
+    const goalFs = compact ? 12 : (summary ? 13 : 12);
     f.padR = Math.max(f.padR, Math.ceil(estimateWidth('1,500만', goalFs)) + 8);
     if (summary) f.slotW = (f.W - f.padL - f.padR) / Math.max(pts.length, 1);
     else f.W = f.padL + Math.max(pts.length, 1) * f.slotW + f.padR;
@@ -362,7 +364,7 @@
     [0, 7500000, 15000000].forEach(function (v, idx) {
       const y = yAt(v);
       if (idx === 1) s += '<line x1="' + f.padL + '" x2="' + (f.W - f.padR) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="#2c3a4d"/>';
-      pins.push({ x: f.padL - 8, y: y + 4, text: man(v), fs: summary ? 16 : 13, fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
+      pins.push({ x: f.padL - 8, y: y + 4, text: man(v), fs: compact ? 13 : (summary ? 16 : 13), fill: '#9aa8ba', anchor: 'end', mode: 'pin', role: 'tick' });
     });
     goals.forEach(function (g) {
       const y = yAt(g.v);
@@ -373,7 +375,7 @@
       const cx = xAt(i);
       if (p.value == null) {
         pins.push({
-          x: cx, y: f.H - 16, text: tickText(pts, i), fs: summary ? 15 : 14, fill: '#5c6b80', anchor: 'middle', mode: 'pin',
+          x: cx, y: f.H - 16, text: tickText(pts, i), fs: compact ? 12 : (summary ? 15 : 14), fill: '#5c6b80', anchor: 'middle', mode: 'pin',
           droppable: summary, priority: 5000 + i
         });
         return;
@@ -384,7 +386,7 @@
       const fill = p.unpaid ? 'var(--exp)' : (p.over ? 'var(--inc)' : (p.cur ? 'var(--fee)' : '#6aa8ff'));
       s += '<rect class="sales-bar" data-fee-ym="' + p.ym + '" x="' + (cx - barW / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="5" fill="' + fill + '"/>';
       pins.push({
-        x: cx, y: f.H - 16, text: tickText(pts, i), fs: summary ? 15 : 14, fill: p.cur ? '#f2f6fb' : '#9aa8ba', anchor: 'middle', mode: 'pin',
+        x: cx, y: f.H - 16, text: tickText(pts, i), fs: compact ? 12 : (summary ? 15 : 14), fill: p.cur ? '#f2f6fb' : '#9aa8ba', anchor: 'middle', mode: 'pin',
         droppable: summary, priority: 5000 + i
       });
     });
@@ -400,7 +402,7 @@
         });
       });
       return items;
-    }, summary ? 16 : 14, summary ? 12 : 12, function (fs) { return fs; }, function () { return f.H - 30; }, summary);
+    }, compact ? 13 : (summary ? 16 : 14), compact ? 11 : (summary ? 12 : 12), function (fs) { return fs; }, function () { return f.H - 30; }, summary);
     labels.forEach(function (it) { s += paintItem(it); });
     return { svg: wrap(f.W, f.H, s, '월별 교습비', !summary), scrollLeft: 99999 };
   }

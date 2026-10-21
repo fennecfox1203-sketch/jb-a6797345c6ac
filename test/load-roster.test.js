@@ -817,6 +817,9 @@ test('student chart draws 재원 bars with nested 신규·퇴소 bars and labels
     assertNoTextOverlap(globalThis.Charts.yearBars(J.yearRollup(nd)).svg, 'year demo');
     assertNoTextOverlap(globalThis.Charts.cashBars(J.cashSeries(nd).slice(-9), { summary: true }).svg, 'cash');
     assertNoTextOverlap(globalThis.Charts.salesBars(J.salesPoints(nd).slice(-9), { summary: true }).svg, 'sales');
+    const homeSales = globalThis.Charts.salesBars(J.salesPoints(nd).slice(-9), { summary: true, compact: true }).svg;
+    assert.match(homeSales, /viewBox="0 0 \d+ 228"/);
+    assertNoTextOverlap(homeSales, 'sales home');
     const stack = globalThis.Charts.expenseStack(J.expenseStack(nd));
     if (stack) assertNoTextOverlap(stack.svg, 'expense');
     const col = globalThis.Charts.collectionBars(J.collectionSeries(nd, J.excludedMap(nd)));

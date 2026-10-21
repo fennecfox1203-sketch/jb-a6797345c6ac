@@ -351,6 +351,28 @@ h1 {
 .month-row .gap.ok { color: var(--inc); text-align: right; font-weight: 800; }
 .month-row.go { cursor: pointer; }
 
+.home-board { display: block; }
+.home-board > .chart-card,
+.home-board > .leave-home { margin-bottom: 12px; }
+.leave-table { display: flex; flex-direction: column; margin-top: 6px; }
+.leave-tr {
+  display: grid;
+  grid-template-columns: minmax(4.2rem, .9fr) repeat(3, minmax(0, 1fr));
+  gap: 4px 8px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  padding: 7px 2px;
+  font-size: .86rem;
+  font-variant-numeric: tabular-nums;
+}
+.leave-tr:last-child { border-bottom: 0; }
+.leave-tr.head { color: var(--muted); font-size: .75rem; font-weight: 800; padding-bottom: 4px; }
+.leave-tr span { min-width: 0; }
+.leave-tr span:not(:first-child) { text-align: right; }
 .leave-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
 @media (min-width: 640px) { .leave-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .leave-grid > .card { margin: 0; }
@@ -578,6 +600,14 @@ h1 {
 
   .goal-grid { gap: 16px; margin-bottom: 16px; }
   .goal-grid .card { min-height: 176px; }
+  .home-board {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, .85fr);
+    gap: 12px;
+    align-items: start;
+  }
+  .home-board > .chart-card,
+  .home-board > .leave-home { margin-bottom: 0; }
   .hero { font-size: 2rem; }
   .dday { font-size: 2.2rem; }
 
@@ -711,4 +741,29 @@ h1 {
   .back.block { max-width: 420px; margin-left: auto; margin-right: auto; }
 
   .modal { width: min(100%, 560px); }
+}
+
+/* 노트북 첫 화면(약 1024x658)에서 그래프와 연차표가 한 눈에 들어가게 위쪽을 낮춘다. */
+@media (min-width: 1024px) and (max-height: 760px) {
+  .wrap { padding-top: 8px; padding-bottom: 8px; }
+  .top { padding: 0 2px 4px; }
+  h1 { font-size: 1.2rem; }
+  .totals { gap: 8px; }
+  .tot { min-height: 0; padding: 6px 8px; }
+  .tot .l { font-size: .72rem; }
+  .tot .v { font-size: 1.02rem; margin-top: 1px; }
+  .totals-head { font-size: .82rem; margin-bottom: 4px; }
+  .totals-note { margin-top: 4px; }
+  .workspace { margin-top: 8px; column-gap: 14px; }
+  .goal-grid { gap: 8px; margin-bottom: 8px; }
+  .goal-grid .card { min-height: 0; padding: 8px 10px; }
+  .hero { font-size: 1.28rem; }
+  .dday { font-size: 1.4rem; }
+  .chart-card { padding: 8px 8px 4px; }
+  .chart-card .chart-hint { padding-bottom: 0; }
+  .legend { padding: 4px 4px 0; font-size: .78rem; }
+  .home-board { gap: 8px; }
+  .leave-home { padding: 10px 12px; }
+  .leave-home h2 { margin-bottom: 2px; }
+  .leave-tr { padding: 4px 2px; font-size: .8rem; }
 }
