@@ -1620,6 +1620,177 @@
     };
   }
 
+  const LEAVE_DAY_HOURS = 7;
+  const LEAVE_MORNING_HOURS = 3;
+  const LEAVE_AFTERNOON_HOURS = 4;
+
+  function findHeaderColFrom(header, names, start) {
+    const want = (names || []).map(headerKey);
+    const h = header || [];
+    for (let i = start || 0; i < h.length; i++) {
+      const k = headerKey(h[i]);
+      if (k && want.indexOf(k) >= 0) return i;
+    }
+    return -1;
+  }
+
+  function leaveYmd(v) {
+    const t = _s(v);
+    const m = /^(20\d\d)\s*[-.\/년]\s*(\d{1,2})\s*[-.\/월]\s*(\d{1,2})/.exec(t);
+    if (!m) return '';
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+    return m[1] + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  }
+
+  function leaveHasNum(v) {
+    return _s(v) !== '' && isFinite(_num(v));
+  }
+
+  function leaveRoundDays(hours) {
+    return Math.round((Number(hours) || 0) / LEAVE_DAY_HOURS * 100) / 100;
+  }
+
+  /* 칸이 비어 있을 때만 규칙으로 채운다. 1일 7시간, 오전 반차 3시간, 오후 반차 4시간. */
+  function leaveHoursFromType(type, entered) {
+    const k = headerKey(type);
+    const n = Number(entered) || 0;
+    if (k.indexOf('오전') >= 0) return LEAVE_MORNING_HOURS;
+    if (k.indexOf('오후') >= 0) return LEAVE_AFTERNOON_HOURS;
+    if (k.indexOf('시간') >= 0) return n;
+    /* 공가는 연차를 쓰지 않는다. 사용 시간 칸이 채워져 있으면 그 값을 먼저 쓴다. */
+    if (k.indexOf('공가') >= 0) return 0;
+    if (k.indexOf('연차') >= 0 || k.indexOf('반차') >= 0) return n || LEAVE_DAY_HOURS;
+    return n;
+  }
+
+  function blankLeaveStaff(name) {
+    return {
+      name: name,
+      grantedDays: null, grantedHours: null,
+      usedDays: null, usedHours: null,
+      remainDays: null, remainHours: null,
+      fromSummary: false
+    };
+  }
+
+  function applyLeaveRemain(st) {
+    if (st.grantedHours == null && st.grantedDays != null) st.grantedHours = Math.round(st.grantedDays * LEAVE_DAY_HOURS * 100) / 100;
+    if (st.grantedDays == null && st.grantedHours != null) st.grantedDays = leaveRoundDays(st.grantedHours);
+    if (st.usedHours == null && st.usedDays != null) st.usedHours = Math.round(st.usedDays * LEAVE_DAY_HOURS * 100) / 100;
+    if (st.usedDays == null && st.usedHours != null) st.usedDays = leaveRoundDays(st.usedHours);
+    if (st.remainDays == null && st.grantedDays != null && st.usedDays != null) {
+      st.remainDays = Math.round((st.grantedDays - st.usedDays) * 100) / 100;
+    }
+    if (st.remainHours == null && st.grantedHours != null && st.usedHours != null) {
+      st.remainHours = Math.round((st.grantedHours - st.usedHours) * 100) / 100;
+    }
+    if (st.remainHours == null && st.remainDays != null) st.remainHours = Math.round(st.remainDays * LEAVE_DAY_HOURS * 100) / 100;
+    if (st.remainDays == null && st.remainHours != null) st.remainDays = leaveRoundDays(st.remainHours);
+    return st;
+  }
+
+  function parseLeaveRows(rows) {
+    const list = rows || [];
+    let header = null;
+    let headerIndex = -1;
+    for (let i = 0; i < Math.min(list.length, 8); i++) {
+      const r = list[i] || [];
+      const dateIdx = findHeaderCol(r, ['날짜', '일자', '사용일']);
+      const staffIdx = findHeaderCol(r, ['직원', '성명', '이름']);
+      if (dateIdx >= 0 && staffIdx >= 0) { header = r; headerIndex = i; break; }
+    }
+    const empty = { entries: [], staff: [] };
+    if (!header) return empty;
+    const summaryStaffIdx = findHeaderColFrom(header, ['직원', '성명', '이름'], (findHeaderCol(header, ['직원', '성명', '이름']) + 1));
+    const summaryAt = summaryStaffIdx >= 0 ? summaryStaffIdx : header.length;
+    const cols = {
+      date: findHeaderCol(header, ['날짜', '일자', '사용일']),
+      staff: findHeaderCol(header, ['직원', '성명', '이름']),
+      type: findHeaderColFrom(header, ['종류', '구분', '유형', '연차종류'], 0),
+      entered: findHeaderColFrom(header, ['직접입력시간', '입력시간', '신청시간', '사용신청시간'], 0),
+      hours: findHeaderColFrom(header, ['사용시간', '계산시간', '환산시간'], 0),
+      days: findHeaderColFrom(header, ['사용일수'], 0),
+      note: findHeaderColFrom(header, ['비고', '메모', '내용'], 0)
+    };
+    if (cols.hours >= summaryAt) cols.hours = -1;
+    if (cols.days >= summaryAt) cols.days = -1;
+    if (cols.note >= summaryAt) cols.note = -1;
+    const sum = {
+      staff: summaryStaffIdx,
+      grantedDays: findHeaderColFrom(header, ['부여일수', '발생일수', '부여일'], summaryAt),
+      grantedHours: findHeaderColFrom(header, ['부여시간', '발생시간'], summaryAt),
+      usedDays: findHeaderColFrom(header, ['사용일수'], summaryAt),
+      usedHours: findHeaderColFrom(header, ['사용시간'], summaryAt),
+      remainDays: findHeaderColFrom(header, ['잔여일수', '남은일수', '잔여일'], summaryAt),
+      remainHours: findHeaderColFrom(header, ['잔여시간', '남은시간'], summaryAt)
+    };
+    const entries = [];
+    for (let i = headerIndex + 1; i < list.length; i++) {
+      const r = list[i] || [];
+      const date = leaveYmd(r[cols.date]);
+      const name = _s(r[cols.staff]);
+      if (!date || !name) continue;
+      if (headerKey(name) === '직원' || headerKey(name) === '합계') continue;
+      const type = cols.type >= 0 ? _s(r[cols.type]) : '';
+      const entered = cols.entered >= 0 && leaveHasNum(r[cols.entered]) ? _num(r[cols.entered]) : null;
+      let hours = cols.hours >= 0 && leaveHasNum(r[cols.hours]) ? _num(r[cols.hours]) : null;
+      if (hours == null) hours = leaveHoursFromType(type, entered == null ? 0 : entered);
+      let days = cols.days >= 0 && leaveHasNum(r[cols.days]) ? _num(r[cols.days]) : null;
+      if (days == null) days = leaveRoundDays(hours);
+      entries.push({
+        date: date,
+        name: name,
+        type: type || '연차',
+        hours: hours,
+        days: days,
+        note: cols.note >= 0 ? _s(r[cols.note]) : '',
+        idx: i
+      });
+    }
+    entries.sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return b.idx - a.idx;
+    });
+    const byName = {};
+    const order = [];
+    function staffOf(name) {
+      if (!byName[name]) {
+        byName[name] = blankLeaveStaff(name);
+        order.push(name);
+      }
+      return byName[name];
+    }
+    if (sum.staff >= 0) {
+      for (let i = headerIndex + 1; i < list.length; i++) {
+        const r = list[i] || [];
+        const name = _s(r[sum.staff]);
+        if (!name || headerKey(name) === '직원' || headerKey(name) === '합계') continue;
+        const st = staffOf(name);
+        st.fromSummary = true;
+        if (sum.grantedDays >= 0 && leaveHasNum(r[sum.grantedDays])) st.grantedDays = _num(r[sum.grantedDays]);
+        if (sum.grantedHours >= 0 && leaveHasNum(r[sum.grantedHours])) st.grantedHours = _num(r[sum.grantedHours]);
+        if (sum.usedDays >= 0 && leaveHasNum(r[sum.usedDays])) st.usedDays = _num(r[sum.usedDays]);
+        if (sum.usedHours >= 0 && leaveHasNum(r[sum.usedHours])) st.usedHours = _num(r[sum.usedHours]);
+        if (sum.remainDays >= 0 && leaveHasNum(r[sum.remainDays])) st.remainDays = _num(r[sum.remainDays]);
+        if (sum.remainHours >= 0 && leaveHasNum(r[sum.remainHours])) st.remainHours = _num(r[sum.remainHours]);
+      }
+    }
+    const usedBag = {};
+    entries.forEach(function (e) {
+      if (!usedBag[e.name]) usedBag[e.name] = 0;
+      usedBag[e.name] += e.hours;
+      staffOf(e.name);
+    });
+    order.forEach(function (name) {
+      const st = byName[name];
+      if (st.usedHours == null && usedBag[name] != null) st.usedHours = Math.round(usedBag[name] * 100) / 100;
+      applyLeaveRemain(st);
+    });
+    return { entries: entries, staff: order.map(function (name) { return byName[name]; }) };
+  }
+
   root.Jangbu = {
     PER_SESSION: PER_SESSION,
     LEAVE_MONTHS: LEAVE_MONTHS,
@@ -1689,6 +1860,9 @@
     periodCompare: periodCompare,
     feeChange: feeChange,
     flowChange: flowChange,
+    LEAVE_DAY_HOURS: LEAVE_DAY_HOURS,
+    leaveHoursFromType: leaveHoursFromType,
+    parseLeaveRows: parseLeaveRows,
     parseSheetTitles: parseSheetTitles,
     sheetTitleVariants: sheetTitleVariants,
     pickSheetTitle: pickSheetTitle,

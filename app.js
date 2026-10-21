@@ -19,7 +19,7 @@
     return resolved.id;
   })();
 
-  const SHEET_GIDS = { '학생 명단': '0', '통장거래내역': '1723542002', '휴원 기록': '739493373' };
+  const SHEET_GIDS = { '학생 명단': '0', '통장거래내역': '1723542002', '휴원 기록': '739493373', '연차관리2': '759985960' };
   const BANK_UPLOAD_API = window.LEDGER_BANK_UPLOAD_API || 'http://127.0.0.1:8787/api/upload-bank';
   const CAT_QUEUE_API = window.LEDGER_CAT_QUEUE_API || 'http://127.0.0.1:8787/api/queue-cat-overrides';
   const CAT_PENDING_API = window.LEDGER_CAT_PENDING_API || 'http://127.0.0.1:8787/api/pending-cat-overrides';
@@ -28,7 +28,8 @@
     return {
       title: '엄궁 코오롱 공부방', scope: '', note: '', updated: '', latestFeeMonth: '',
       totals: { income: 0, expense: 0, fee: 0 }, months: [], monthDetails: {}, suji: {},
-      tuition: {}, billMonths: [], enroll: {}, students: [], issues: [], restMonths: []
+      tuition: {}, billMonths: [], enroll: {}, students: [], issues: [], restMonths: [],
+      leave: { entries: [], staff: [] }
     };
   }
 
@@ -45,7 +46,7 @@
   let state = {
     tab: 'sales', month: null, view: 'list', salesView: 'list', sujiView: 'list',
     feeMonth: null, bankMonth: null, dirFilt: 'all', feeFilt: 'unpaid',
-    stuFlowYm: null, stuView: 'list', q: '', peek: null
+    stuFlowYm: null, stuView: 'list', q: '', peek: null, leaveStaff: ''
   };
   let focusMem = null;
 
@@ -240,6 +241,7 @@
       if (!state.bankMonth || keys.indexOf(state.bankMonth) < 0) state.bankMonth = keys.length ? keys[keys.length - 1] : null;
       state.dirFilt = 'all'; state.q = '';
     }
+    if (name === 'leave') state.leaveStaff = '';
     applyTabUI();
     render();
   }
@@ -266,6 +268,13 @@
   function goMonthsChartDetail() { state.tab = 'months'; state.view = 'chartDetail'; state.month = null; applyTabUI(); render(); }
   function goSujiChartDetail() { state.tab = 'suji'; state.sujiView = 'chartDetail'; applyTabUI(); render(); }
   function goStudentChartDetail() { state.tab = 'students'; state.stuView = 'chartDetail'; state.stuFlowYm = null; applyTabUI(); render(); }
+  function goLeave(name) {
+    state.tab = 'leave';
+    state.leaveStaff = name || '';
+    state.peek = null;
+    applyTabUI();
+    render();
+  }
   function openPeek(name) { if (!name) return; state.peek = name; render(); }
 
   function pinRight(node) {
@@ -679,8 +688,8 @@ function minusWon(n) {
     let pts = J.salesPoints(DATA, currentExcluded());
     if (summary) pts = sliceYm(pts, cur);
     const chart = C.salesBars(pts, { summary: summary });
-    const rows = goalRows();
     if (!summary) {
+      const rows = goalRows();
       p.innerHTML = backBtn('backSales', '← 목표')
         + '<div class="card"><h2>교습비 매출</h2><div class="hint">전체 월 · 좌우로 밀어서 보기 · 숫자 단위 만 원 · 막대를 누르면 그 달</div></div>'
         + chartCard({ id: 'salesChart', scrollId: 'salesScroll', summary: false, hint: '좌우 스크롤', svg: chart.svg, legend: [
@@ -695,16 +704,84 @@ function minusWon(n) {
     }
 
     p.innerHTML = '<div class="goal-grid"><button type="button" class="card go" id="curFeeCard"><div class="hint">이번 달 교습비 · ' + esc(J.koShortYm(cur)) + '</div><div class="hero" style="color:var(--fee)">' + J.won(curSales) + '</div><div class="hint">1차 목표 ' + J.won(J.SALES_GOAL_1) + ' · ' + pct + '%</div><div class="prog"><span style="width:' + pct + '%"></span></div><div class="hint" style="margin-top:8px">' + (gap > 0 ? '1차 목표까지 ' + J.won(gap) : '1차 목표 초과 ' + J.won(-gap)) + '</div><div class="hint">도넛 상세</div></button><button type="button" class="card go" id="ddayCard"><div class="hint">1차 목표 1,000만</div><div class="dday">' + ddayLabel + '</div><div class="hint">2026.12.31까지</div><div class="hint" style="margin-top:10px">기준은 교습비 납부 합계</div><div class="hint">디데이 달력</div></button></div>'
-      + '<div class="split wide-pair">'
       + chartCard({ id: 'salesChart', scrollId: 'salesHomeScroll', summary: true, hint: '최근 9개월 · 누르면 전체', svg: chart.svg, legend: [
         { color: 'var(--fee)', label: '이번 달' }, { color: 'var(--exp)', label: '미납 있는 달' }
       ] })
-      + '<div class="card sheet"><h2>월별 · 1차 목표 대비</h2><div class="month-row head"><span>월</span><span>교습비</span><span>1차와 차이</span></div>' + (rows || emptyBox('데이터 없음')) + '</div></div>';
-    bindPress('salesChart', function (e) { if (e.target.closest && e.target.closest('.month-row')) return; goSalesChartDetail(); });
+      + leaveHomeHtml();
+    bindPress('salesChart', function () { goSalesChartDetail(); });
     $('curFeeCard').onclick = function () { state.salesView = 'feeDonut'; state.feeMonth = cur; render(); };
     $('ddayCard').onclick = function () { state.salesView = 'ddayCal'; render(); };
-    p.querySelectorAll('.month-row[data-fee-ym]').forEach(function (r) {
-      r.onclick = function (e) { e.stopPropagation(); goFeeMonth(r.dataset.feeYm); };
+    bindLeaveJumps(p);
+  }
+
+  function leavePack() {
+    const pack = DATA && DATA.leave;
+    if (!pack || typeof pack !== 'object') return { entries: [], staff: [] };
+    return { entries: pack.entries || [], staff: pack.staff || [] };
+  }
+  function leaveText(n, unit) {
+    if (n == null || !isFinite(Number(n))) return '—';
+    const v = Math.round(Number(n) * 100) / 100;
+    const text = Math.abs(v - Math.round(v)) < 0.001 ? String(Math.round(v)) : String(v);
+    return text + unit;
+  }
+  function leaveBoth(days, hours) {
+    return leaveText(days, '일') + ' · ' + leaveText(hours, '시간');
+  }
+  function leaveCard(st, active) {
+    return '<button type="button" class="card go leave-card' + (active ? ' on' : '') + '" data-leave="' + esc(st.name) + '">'
+      + '<div class="leave-who">' + esc(st.name) + '</div>'
+      + '<div class="leave-line"><span>부여</span><b>' + esc(leaveBoth(st.grantedDays, st.grantedHours)) + '</b></div>'
+      + '<div class="leave-line"><span>사용</span><b>' + esc(leaveBoth(st.usedDays, st.usedHours)) + '</b></div>'
+      + '<div class="leave-line"><span>잔여</span><b>' + esc(leaveBoth(st.remainDays, st.remainHours)) + '</b></div>'
+      + '</button>';
+  }
+  function leaveHomeHtml() {
+    const staff = leavePack().staff;
+    const body = staff.length
+      ? '<div class="leave-grid">' + staff.map(function (st) { return leaveCard(st, false); }).join('') + '</div>'
+      : emptyBox('연차 기록이 없습니다');
+    return '<div class="card leave-home"><h2>연차</h2><div class="hint">직원별 부여 · 사용 · 잔여. 카드를 누르면 내역.</div>' + body + '</div>';
+  }
+  function bindLeaveJumps(root) {
+    (root || document).querySelectorAll('[data-leave]').forEach(function (b) {
+      b.onclick = function () { goLeave(b.getAttribute('data-leave') || ''); };
+    });
+  }
+  function renderLeave() {
+    const p = $('panel-leave');
+    if (!p) return;
+    const pack = leavePack();
+    const names = [];
+    pack.staff.forEach(function (st) { if (st && st.name && names.indexOf(st.name) < 0) names.push(st.name); });
+    pack.entries.forEach(function (e) { if (e && e.name && names.indexOf(e.name) < 0) names.push(e.name); });
+    if (state.leaveStaff && names.indexOf(state.leaveStaff) < 0) state.leaveStaff = '';
+    const cards = pack.staff.length
+      ? '<div class="leave-grid">' + pack.staff.map(function (st) { return leaveCard(st, state.leaveStaff === st.name); }).join('') + '</div>'
+      : emptyBox('연차 기록이 없습니다');
+    const filt = '<div class="seg" id="leaveSeg"><button type="button" data-name="" class="' + (state.leaveStaff ? '' : 'on') + '">전체</button>'
+      + names.map(function (n) {
+        return '<button type="button" data-name="' + esc(n) + '" class="' + (state.leaveStaff === n ? 'on' : '') + '">' + esc(n) + '</button>';
+      }).join('') + '</div>';
+    const entries = pack.entries.filter(function (e) { return !state.leaveStaff || e.name === state.leaveStaff; });
+    const rows = entries.map(function (e) {
+      const note = e.note ? esc(e.note) : '';
+      return '<div class="leave-row"><span>' + esc(String(e.date || '').replace(/-/g, '.')) + '</span><span>' + esc(e.name) + '</span><span>' + esc(e.type || '') + '</span><span class="num">' + esc(leaveText(e.hours, '시간')) + '</span><span class="note">' + note + '</span></div>';
+    }).join('');
+    p.innerHTML = '<div class="card"><h2>연차</h2><div class="hint">1일 7시간 · 오전 반차 3시간 · 오후 반차 4시간. 시트에 적힌 사용 시간을 우선합니다.</div>' + cards + '</div>'
+      + filt
+      + '<div class="card sheet leave-sheet"><h2>사용 내역</h2><div class="leave-row head"><span>날짜</span><span>직원</span><span>종류</span><span class="num">시간</span><span class="note">비고</span></div>'
+      + (rows || emptyBox('해당 없음')) + '</div>';
+    const seg = $('leaveSeg');
+    if (seg) seg.querySelectorAll('button').forEach(function (b) {
+      b.onclick = function () { state.leaveStaff = b.getAttribute('data-name') || ''; render(); };
+    });
+    p.querySelectorAll('.leave-card[data-leave]').forEach(function (b) {
+      b.onclick = function () {
+        const name = b.getAttribute('data-leave') || '';
+        state.leaveStaff = state.leaveStaff === name ? '' : name;
+        render();
+      };
     });
   }
 
@@ -1265,6 +1342,7 @@ function minusWon(n) {
     else if (state.tab === 'fee') renderFee();
     else if (state.tab === 'students') renderStudents();
     else if (state.tab === 'bank') renderBank();
+    else if (state.tab === 'leave') renderLeave();
     if (DEMO) window.__metrics = J.snapshot(DATA);
     window.__ready = true;
     restoreFocus();
@@ -1310,6 +1388,10 @@ function minusWon(n) {
     } else if (name === '학생 명단') {
       spec.marker = '이름';
       spec.markerAny = ['이름', '성명', '성함', '학생명', '학생이름'];
+    } else if (name === '연차관리2') {
+      spec.name = '연차';
+      spec.marker = '날짜';
+      spec.markerAny = ['날짜', '일자', '사용일'];
     }
     return J.loadFreshCsv(spec);
   }
@@ -1379,13 +1461,20 @@ function minusWon(n) {
       const bankP = fetchSheetRows('통장거래내역');
       const rosterP = fetchSheetRows('학생 명단');
       const restP = fetchSheetRows('휴원 기록').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
+      const leaveP = fetchSheetRows('연차관리2').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const pair = await Promise.all([bankP, rosterP]);
       const bankRows = pair[0];
       const rosterRows = pair[1];
       const restPack = await restP;
+      const leavePack = await leaveP;
       const nd = J.buildLedger(bankRows, rosterRows);
       if (restPack.rows) nd.restMonths = J.parseRestRows(restPack.rows);
       else nd.restMonths = Array.isArray(DATA.restMonths) ? DATA.restMonths.slice() : [];
+      if (leavePack.rows) nd.leave = J.parseLeaveRows(leavePack.rows);
+      else {
+        const prev = DATA.leave && typeof DATA.leave === 'object' ? DATA.leave : { entries: [], staff: [] };
+        nd.leave = { entries: (prev.entries || []).slice(), staff: (prev.staff || []).slice() };
+      }
       J.refuseShorterLedger(cachedLedger(), nd);
       nd.syncedAt = _stamp();
       const now = new Date();
@@ -1396,10 +1485,18 @@ function minusWon(n) {
       try { localStorage.setItem('jangbuCache', JSON.stringify(nd)); } catch (e) {}
       loadNote = null;
       ok = true;
+      const warns = [];
       if (restPack.err) {
         const why = restPack.err && restPack.err.message ? restPack.err.message : '휴원 기록을 읽지 못했어요.';
+        warns.push('휴원 기록은 이번에 못 읽어서 이전 기록을 유지합니다. 이유: ' + why);
+      }
+      if (leavePack.err) {
+        const why = leavePack.err && leavePack.err.message ? leavePack.err.message : '연차를 읽지 못했어요.';
+        warns.push('연차는 이번에 못 읽어서 이전 연차를 유지합니다. 이유: ' + why);
+      }
+      if (warns.length) {
         setSyncStatus('마지막 성공 ' + nd.syncedAt);
-        showBanner('통장과 명단은 반영했어요. 휴원 기록은 이번에 못 읽어서 이전 기록을 유지합니다. 이유: ' + why, 'warn');
+        showBanner('통장과 명단은 반영했어요. ' + warns.join(' '), 'warn');
       } else {
         showBanner('');
         setSyncStatus('마지막 성공 ' + nd.syncedAt);
@@ -1418,6 +1515,7 @@ function minusWon(n) {
     const src = window.buildDemoSource();
     const nd = J.buildLedger(src.bank, src.roster);
     nd.restMonths = J.parseRestRows(src.rest);
+    nd.leave = J.parseLeaveRows(src.leave || []);
     nd.syncedAt = '데모';
     nd.demo = true;
     booting = false;

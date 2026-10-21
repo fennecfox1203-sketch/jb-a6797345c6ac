@@ -14,7 +14,7 @@
 <link rel="icon" href="icon-180.png" sizes="180x180">
 <link rel="icon" href="icon-512.png" sizes="512x512">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="styles.css?v=20261021">
+<link rel="stylesheet" href="styles.css?v=20261021b">
 </head>
 <body>
 <div class="wrap">
@@ -37,6 +37,7 @@
   <div class="workspace">
   <nav class="tabs" role="tablist" aria-label="화면">
     <button type="button" class="tab on" role="tab" id="tab-sales" aria-controls="panel-sales" aria-selected="true" data-tab="sales">목표</button>
+    <button type="button" class="tab" role="tab" id="tab-leave" aria-controls="panel-leave" aria-selected="false" tabindex="-1" data-tab="leave">연차</button>
     <button type="button" class="tab" role="tab" id="tab-students" aria-controls="panel-students" aria-selected="false" tabindex="-1" data-tab="students">학생</button>
     <button type="button" class="tab" role="tab" id="tab-fee" aria-controls="panel-fee" aria-selected="false" tabindex="-1" data-tab="fee">교습비</button>
     <button type="button" class="tab" role="tab" id="tab-months" aria-controls="panel-months" aria-selected="false" tabindex="-1" data-tab="months">수입지출</button>
@@ -45,6 +46,7 @@
   </nav>
   <div class="stage">
   <div class="panel on" id="panel-sales" role="tabpanel" aria-labelledby="tab-sales"></div>
+  <div class="panel" id="panel-leave" role="tabpanel" aria-labelledby="tab-leave" aria-hidden="true"></div>
   <div class="panel" id="panel-months" role="tabpanel" aria-labelledby="tab-months" aria-hidden="true"></div>
   <div class="panel" id="panel-suji" role="tabpanel" aria-labelledby="tab-suji" aria-hidden="true"></div>
   <div class="panel" id="panel-fee" role="tabpanel" aria-labelledby="tab-fee" aria-hidden="true"></div>
@@ -54,9 +56,9 @@
   </div>
 </div>
 <div class="foot" id="foot"></div>
-<script src="ledger.js?v=20261021"></script>
-<script src="demo.js?v=20261021"></script>
-<script src="charts.js?v=20261021"></script>
-<script src="app.js?v=20261021"></script>
+<script src="ledger.js?v=20261021b"></script>
+<script src="demo.js?v=20261021b"></script>
+<script src="charts.js?v=20261021b"></script>
+<script src="app.js?v=20261021b"></script>
 </body>
 </html>
