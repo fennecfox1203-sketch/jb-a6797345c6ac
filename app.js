@@ -1387,7 +1387,41 @@ function minusWon(n) {
     });
     return rows;
   }
-  const APP_REV = '20261021e';
+  const APP_REV = '20261021f';
+  async function dropStaleClients() {
+    let had = false;
+    const root = location.origin + location.pathname.replace(/[^/]*$/, '');
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        const list = await navigator.serviceWorker.getRegistrations();
+        const mine = (list || []).filter(function (reg) { return reg.scope && reg.scope.indexOf(root) === 0; });
+        if (mine.length) {
+          had = true;
+          await Promise.all(mine.map(function (reg) { return reg.unregister(); }));
+        }
+      }
+    } catch (e) {}
+    try {
+      if (window.caches && caches.keys) {
+        const keys = await caches.keys();
+        const mine = (keys || []).filter(function (key) { return /jangbu|jb-a6797345c6ac/i.test(key); });
+        if (mine.length) {
+          had = true;
+          await Promise.all(mine.map(function (key) { return caches.delete(key); }));
+        }
+      }
+    } catch (e) {}
+    if (!had) return false;
+    const guard = 'jangbuSwCleared';
+    try {
+      if (sessionStorage.getItem(guard) === '1') return false;
+      sessionStorage.setItem(guard, '1');
+    } catch (e) {
+      return false;
+    }
+    location.reload();
+    return true;
+  }
   async function ensureFreshBundle() {
     try {
       const r = await fetch('index.html?t=' + Date.now(), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
@@ -1424,6 +1458,8 @@ function minusWon(n) {
     if (name === '통장거래내역') {
       spec.marker = '거래일자';
       spec.validate = J.checkBankRows;
+      /* 전체 CSV가 시트 화면 HTML이면 행을 나눠 다시 받는다. gviz는 쓰지 않는다. */
+      spec.recoverRows = { col: 'AZ', size: 400, maxWindows: 8 };
     } else if (name === '학생 명단') {
       spec.marker = '이름';
       spec.markerAny = ['이름', '성명', '성함', '학생명', '학생이름'];
@@ -1439,23 +1475,24 @@ function minusWon(n) {
     return (DATA && DATA.monthDetails && Object.keys(DATA.monthDetails).length) ? DATA : null;
   }
 
-  function showSyncFailure(err) {
+  function showSyncFailure(err, extra) {
     const view = J.syncFailureView(err, cachedLedger());
     loadNote = view;
     try { console.error('sync failed', err); } catch (e) {}
+    const tail = extra ? (' ' + extra) : '';
     const when = J.hhmmFromCache(DATA);
     if (view.kind === 'stale') {
       setSyncStatus('불러오기 실패 · 마지막 성공 ' + (when || '시각 없음'));
-      showBanner(view.banner, 'err');
+      showBanner(view.banner + tail, 'err');
       return;
     }
     if (view.kind === 'schema') {
       setSyncStatus('머리글 확인' + (when ? (' · 마지막 성공 ' + when) : ''));
-      showBanner(view.banner, 'err');
+      showBanner(view.banner + tail, 'err');
       return;
     }
     setSyncStatus('시트를 불러오지 못했어요');
-    showBanner(view.banner || '시트를 불러오지 못했어요', 'err');
+    showBanner((view.banner || '시트를 불러오지 못했어요') + tail, 'err');
   }
 
   let syncInFlight = null;
@@ -1492,24 +1529,39 @@ function minusWon(n) {
     let ok = false;
     const btn = $('syncBtn');
     if (btn) { btn.disabled = true; btn.textContent = '동기화 중'; }
+    if (await dropStaleClients()) return false;
     if (await ensureFreshBundle()) return false;
     const savedAt = J.hhmmFromCache(cachedLedger());
     setSyncStatus(savedAt ? ('시트 확인 중 · 저장본 ' + savedAt) : '구글 시트에서 불러오는 중');
     try {
       if (!SHEET_ID) throw new Error('장부 주소가 올바르지 않아요. 받은 주소 전체(# 뒤까지)로 다시 열어 주세요.');
       if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('인터넷 연결이 없어요. 연결되면 자동으로 다시 불러와요.');
-      const bankP = fetchSheetRows('통장거래내역');
+      const bankP = fetchSheetRows('통장거래내역').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const rosterP = fetchSheetRows('학생 명단').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const restP = fetchSheetRows('휴원 기록').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const leaveP = fetchSheetRows('연차관리').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
-      const bankRows = await bankP;
+      const bankPack = await bankP;
       let rosterPack = await rosterP;
-      if (rosterPack.err) {
+      if (bankPack.rows && rosterPack.err) {
         try { rosterPack = { rows: await fetchSheetRows('학생 명단') }; }
         catch (e) { rosterPack = { err: e }; }
       }
       const restPack = await restP;
       const leavePack = await leaveP;
+      if (!bankPack.rows) {
+        const partial = J.applyPartialTabs(cachedLedger(), {
+          leaveRows: leavePack.rows || null,
+          restRows: restPack.rows || null
+        });
+        if (partial) {
+          applyNewData(partial.data);
+          try { localStorage.setItem('jangbuCache', JSON.stringify(DATA)); } catch (e) {}
+        }
+        const err = bankPack.err || new Error('통장거래내역을 읽지 못했어요.');
+        err.partialNote = partial ? (partial.applied.join('·') + ' 탭은 새 시트를 반영했습니다.') : '';
+        throw err;
+      }
+      const bankRows = bankPack.rows;
       let rosterKept = false;
       if (!rosterPack.rows) {
         const prevStudents = DATA && DATA.students;
@@ -1558,7 +1610,7 @@ function minusWon(n) {
         setSyncStatus('마지막 성공 ' + nd.syncedAt);
       }
     } catch (e) {
-      showSyncFailure(e);
+      showSyncFailure(e, e && e.partialNote);
     } finally {
       booting = false;
       if (btn) { btn.disabled = false; btn.textContent = '새로고침'; }

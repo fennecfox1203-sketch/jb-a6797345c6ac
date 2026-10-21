@@ -282,6 +282,97 @@ test('an html shell with a file link is followed, and a bare shell retries as ts
   }
 });
 
+function mockSheet(body, type, url) {
+  return {
+    status: 200,
+    url: url || '',
+    headers: { get: function (name) { return String(name).toLowerCase() === 'content-type' ? type : ''; } },
+    text: function () { return Promise.resolve(body); }
+  };
+}
+
+test('a signed-in html body at the file host is reread without cookies', async function () {
+  const file = 'https://doc-0s-sheets.googleusercontent.com/export/abc/file?format=csv&gid=1';
+  const shell = '<!DOCTYPE html><html><body>sheet app</body></html>';
+  const calls = [];
+  const frames = [];
+  const rows = await J.loadFreshCsv({
+    id: 'fake-sheet',
+    gid: '1',
+    name: '통장거래내역',
+    marker: '거래일자',
+    validate: J.checkBankRows,
+    recoverRows: { col: 'AZ', size: 400, maxWindows: 4 },
+    tries: 1,
+    timeoutMs: 3000,
+    fetch: function (url) {
+      calls.push(url);
+      if (url.indexOf('gviz') >= 0) throw new Error('gviz');
+      const landed = url.indexOf('googleusercontent.com/export/') >= 0 ? url : file;
+      return Promise.resolve(mockSheet(shell, 'text/html', landed));
+    },
+    frameFetch: function (url) {
+      frames.push(url);
+      return { status: 200, url: url, text: FAKE_CSV, contentType: 'text/csv' };
+    }
+  });
+  assert.equal(rows[0][0], '거래일자');
+  assert.deepEqual(frames, [file]);
+  assert.equal(calls.some(function (u) { return u.indexOf('range=') >= 0; }), false);
+  assert.equal(calls.some(function (u) { return u.indexOf('googleusercontent.com/export/') >= 0; }), false);
+});
+
+test('html without a file address is loaded in row windows, not gviz', async function () {
+  const shell = '<!DOCTYPE html><html><body>sheet app only</body></html>';
+  const calls = [];
+  const rows = await J.loadFreshCsv({
+    id: 'fake-sheet',
+    gid: '9',
+    name: '통장거래내역',
+    marker: '거래일자',
+    validate: J.checkBankRows,
+    recoverRows: { col: 'AZ', size: 400, maxWindows: 4 },
+    tries: 1,
+    backoffs: [0],
+    sleep: function () { return Promise.resolve(); },
+    now: function (i) { return 'win-' + i; },
+    timeoutMs: 3000,
+    fetch: function (url) {
+      calls.push(url);
+      if (url.indexOf('gviz') >= 0) throw new Error('gviz');
+      const range = new URL(url).searchParams.get('range');
+      if (!range) return Promise.resolve(mockSheet(shell, 'text/html', 'https://docs.google.com/spreadsheets/d/fake-sheet/edit'));
+      if (range.indexOf('A1:') === 0) return Promise.resolve(mockSheet(FAKE_CSV, 'text/csv', url));
+      return Promise.resolve(mockSheet('', 'text/plain', url));
+    }
+  });
+  assert.equal(rows[1][0], '2026-10-02');
+  assert.equal(calls.filter(function (u) { return u.indexOf('range=A1%3AAZ400') >= 0 || u.indexOf('range=A1:AZ400') >= 0; }).length, 1);
+  assert.equal(calls.some(function (u) { return u.indexOf('gviz') >= 0; }), false);
+});
+
+test('a failed bank tab still keeps leave that already arrived', function () {
+  const prev = {
+    monthDetails: { '2026-09': [{ dir: '수입', amt: 1 }] },
+    leave: { entries: [], staff: [] },
+    syncedAt: '10/13 15:10',
+    cachedAt: '2026-10-13T06:10:00.000Z'
+  };
+  const got = J.applyPartialTabs(prev, {
+    leaveRows: [
+      ['날짜', '직원', '종류', '직접 입력 시간', '사용 시간', '사용 일수', '비고'],
+      ['2026-10-02', '직원가', '연차', '', '7', '1', '']
+    ]
+  });
+  assert.equal(got.applied.join(','), '연차');
+  assert.equal(got.data.syncedAt, '10/13 15:10');
+  assert.equal(got.data.cachedAt, prev.cachedAt);
+  assert.equal(got.data.leave.staff.length, 1);
+  assert.equal(got.data.leave.staff[0].name, '직원가');
+  assert.equal(got.data.monthDetails['2026-09'].length, 1);
+  assert.equal(J.applyPartialTabs(prev, {}), null);
+});
+
 test('a network failure is a Korean error, not an empty success', async function () {
   await assert.rejects(function () {
     return J.loadFreshCsv({

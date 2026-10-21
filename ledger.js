@@ -591,18 +591,21 @@
   /* gviz(/gviz/tq)는 통장 탭 전체를 주지 않는다. 숨긴 행과 머리글이 빠지고
      최근 날짜 칸이 빈 일부만 온다. 그 결과를 성공으로 저장하면 새로고침이
      된 것처럼 보이면서 최신 거래가 사라진다. CSV 내보내기만 반영한다. */
-  function sheetExportUrl(id, gid, nonce, base, format) {
+  function sheetExportUrl(id, gid, nonce, base, format, range) {
     const root = base || ('https://docs.google.com/spreadsheets/d/' + encodeURIComponent(id) + '/export');
     const join = root.indexOf('?') >= 0 ? '&' : '?';
     const fmt = format === 'tsv' ? 'tsv' : 'csv';
-    return root + join + 'format=' + fmt + '&gid=' + encodeURIComponent(String(gid))
+    let url = root + join + 'format=' + fmt + '&gid=' + encodeURIComponent(String(gid))
       + '&t=' + encodeURIComponent(String(nonce));
+    if (range) url += '&range=' + range;
+    return url;
   }
 
   /* 로그인된 구글 창은 내보내기 주소에 시트 화면 HTML을 돌려줄 때가 있다.
      그 안에 실제 파일 주소가 있으면 그 주소만 다시 받는다. 다른 주소는 따라가지 않는다. */
   function sheetFileUrlFromHtml(html) {
     const raw = String(html || '')
+      .replace(/\\\//g, '/')
       .replace(/\\u003d/gi, '=')
       .replace(/\\u0026/gi, '&')
       .replace(/&amp;/g, '&');
@@ -611,6 +614,20 @@
     const confirm = raw.match(/https:\/\/docs\.google\.com\/spreadsheets\/[^\s"'<>\\]*[?&]confirm=[^\s"'<>\\]+/i);
     if (confirm && /(?:^|[?&])format=(csv|tsv)(?:&|$)/i.test(confirm[0])) return confirm[0];
     return '';
+  }
+
+  /* 파일 호스트는 어떤 출처에서든 CSV를 준다. 로그인 쿠키가 붙은 따라가기만 HTML이 된다. */
+  function isAnonymousFileUrl(url) {
+    const s = String(url || '');
+    if (s.indexOf('<') >= 0 || s.indexOf('>') >= 0 || s.indexOf('"') >= 0 || s.indexOf("'") >= 0) return false;
+    return /^https:\/\/doc-[a-z0-9-]+\.googleusercontent\.com\/export\/\S+$/i.test(s);
+  }
+
+  function fileCandidate(got) {
+    const fromHtml = sheetFileUrlFromHtml(got && got.text);
+    if (isAnonymousFileUrl(fromHtml)) return fromHtml;
+    if (isAnonymousFileUrl(got && got.url)) return got.url;
+    return fromHtml || '';
   }
 
   function classifyFailure(code, message) {
@@ -684,7 +701,7 @@
       const r = await fetchImpl(url, bag.init);
       const text = await r.text();
       const contentType = r.headers && r.headers.get ? (r.headers.get('content-type') || '') : '';
-      return { status: r.status, text: text, contentType: contentType };
+      return { status: r.status, text: text, contentType: contentType, url: r.url || '' };
     } finally {
       bag.clear();
     }
@@ -709,18 +726,82 @@
     return rows;
   }
 
+  /* 샌드박스 iframe은 출처가 null이라 구글 로그인 쿠키를 보내지 않는다.
+     파일 호스트는 그 요청에 전체 CSV를 주고, 어떤 출처나 읽게 허용한다. */
+  function fetchViaAnonymousFrame(url, spec) {
+    if (!isAnonymousFileUrl(url)) return Promise.resolve(null);
+    if (spec && typeof spec.frameFetch === 'function') {
+      return Promise.resolve(spec.frameFetch(url, spec)).then(function (got) { return got || null; });
+    }
+    if (typeof document === 'undefined' || typeof window === 'undefined' || !document.createElement || !document.body) {
+      return Promise.resolve(null);
+    }
+    return new Promise(function (resolve) {
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('sandbox', 'allow-scripts');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.style.cssText = 'position:absolute;width:0;height:0;border:0';
+      const token = 'f' + Math.random().toString(36).slice(2);
+      let done = false;
+      function finish(val) {
+        if (done) return;
+        done = true;
+        window.removeEventListener('message', onMsg);
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        resolve(val);
+      }
+      function onMsg(ev) {
+        const data = ev && ev.data;
+        if (!data || data.token !== token) return;
+        if (ev.source && iframe.contentWindow && ev.source !== iframe.contentWindow) return;
+        if (!data.ok) { finish(null); return; }
+        finish({
+          status: data.status || 200,
+          text: String(data.text || ''),
+          contentType: data.contentType || '',
+          url: data.url || url
+        });
+      }
+      window.addEventListener('message', onMsg);
+      const script = '(function(){var token=' + JSON.stringify(token) + ';var url=' + JSON.stringify(url) + ';'
+        + 'fetch(url,{credentials:"omit",cache:"no-store",redirect:"follow",referrerPolicy:"no-referrer"})'
+        + '.then(function(r){return r.text().then(function(text){parent.postMessage({token:token,ok:1,status:r.status,text:text,contentType:(r.headers&&r.headers.get?r.headers.get("content-type"):"")||"",url:r.url||url},"*");});})'
+        + '.catch(function(){parent.postMessage({token:token,ok:0},"*");});})();';
+      iframe.srcdoc = '<!DOCTYPE html><html><body><script>' + script + '</script></body></html>';
+      document.body.appendChild(iframe);
+      setTimeout(function () { finish(null); }, (spec && spec.timeoutMs) || 20000);
+    });
+  }
+
+  async function readRecoveredCsv(fetchImpl, got, spec, err) {
+    const next = fileCandidate(got);
+    if (isAnonymousFileUrl(next)) {
+      const framed = await fetchViaAnonymousFrame(next, spec);
+      if (framed && framed.text) {
+        try {
+          return rowsFromSheetBody(framed, spec);
+        } catch (frameErr) {
+          const code = frameErr && frameErr.code;
+          if (code !== 'html' && code !== 'login' && code !== 'sorry') throw frameErr;
+        }
+      }
+    }
+    if (!next || next === (got && got.requestUrl)) throw err;
+    return rowsFromSheetBody(await fetchSheetText(fetchImpl, next, spec), spec);
+  }
+
   async function readOneCsv(fetchImpl, url, spec) {
     spec = spec || {};
     const name = spec.name || '시트';
     try {
       const got = await fetchSheetText(fetchImpl, url, spec);
+      got.requestUrl = url;
       try {
         return rowsFromSheetBody(got, spec);
       } catch (e) {
         const recoverable = e && (e.code === 'html' || e.code === 'login' || e.code === 'sorry');
-        const next = recoverable ? sheetFileUrlFromHtml(got.text) : '';
-        if (!next || next === url) throw e;
-        return rowsFromSheetBody(await fetchSheetText(fetchImpl, next, spec), spec);
+        if (!recoverable) throw e;
+        return readRecoveredCsv(fetchImpl, got, spec, e);
       }
     } catch (e) {
       if (e && typeof e.code === 'string') throw e;
@@ -729,29 +810,110 @@
     }
   }
 
-  async function loadFreshCsv(spec) {
-    spec = spec || {};
+  async function loadExportAttempts(spec, formatStart) {
     const tries = spec.tries || 3;
     const backoffs = spec.backoffs || [400, 900];
     const sleep = spec.sleep || delayMs;
     const fetchImpl = spec.fetch;
     let lastErr;
-    let format = 'csv';
+    let format = formatStart || 'csv';
     for (let i = 0; i < tries; i++) {
       const nonce = typeof spec.now === 'function' ? spec.now(i) : (Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 8));
-      const url = sheetExportUrl(spec.id, spec.gid, nonce, spec.urlBase, format);
+      const url = sheetExportUrl(spec.id, spec.gid, nonce, spec.urlBase, format, spec.range || '');
       try {
         return await readOneCsv(fetchImpl, url, spec);
       } catch (e) {
         lastErr = e;
         /* CSV 주소가 시트 화면 HTML이면 같은 탭의 TSV를 받는다. TSV도 전체 행이다. */
-        if (e && (e.code === 'html' || e.code === 'login' || e.code === 'sorry')) {
+        if (!spec.range && e && (e.code === 'html' || e.code === 'login' || e.code === 'sorry')) {
           format = format === 'csv' ? 'tsv' : 'csv';
         }
         if (i < tries - 1) await sleep(backoffs[i] != null ? backoffs[i] : backoffs[backoffs.length - 1] || 0);
       }
     }
     throw lastErr || sheetError(spec.name, 'empty', '시트를 불러오지 못했어요.');
+  }
+
+  /* 전체 내보내기가 시트 화면 HTML이면 행 구간으로 나눠 다시 받는다.
+     구간이 비면 끝이다. 시트가 그 구간을 무시하고 전체를 주면 그 전체를 쓴다. */
+  async function loadByRowWindows(spec) {
+    const plan = spec.recoverRows || {};
+    const size = plan.size || 400;
+    const col = plan.col || 'AZ';
+    const maxWindows = plan.maxWindows || 8;
+    const combined = [];
+    for (let i = 0; i < maxWindows; i++) {
+      const start = i * size + 1;
+      const range = 'A' + start + ':' + col + (start + size - 1);
+      const nonce = typeof spec.now === 'function' ? spec.now(50 + i) : (Date.now() + '-w' + i + '-' + Math.random().toString(36).slice(2, 8));
+      const url = sheetExportUrl(spec.id, spec.gid, nonce, spec.urlBase, 'csv', range);
+      const child = {
+        id: spec.id,
+        gid: spec.gid,
+        name: spec.name,
+        fetch: spec.fetch,
+        frameFetch: spec.frameFetch,
+        timeoutMs: spec.timeoutMs,
+        marker: i === 0 ? spec.marker : '',
+        markerAny: i === 0 ? spec.markerAny : null,
+        validate: null
+      };
+      let rows;
+      try {
+        rows = await readOneCsv(spec.fetch, url, child);
+      } catch (e) {
+        if (e && e.code === 'empty') break;
+        throw e;
+      }
+      if (!rows || !rows.length) break;
+      if (rows.length > size + 5) {
+        if (i === 0) {
+          if (spec.validate) spec.validate(rows);
+          return rows;
+        }
+        break;
+      }
+      Array.prototype.push.apply(combined, rows);
+      if (rows.length < size) break;
+    }
+    if (!combined.length) throw sheetError(spec.name, 'empty', '시트를 구간으로도 불러오지 못했어요.');
+    if (spec.validate) spec.validate(combined);
+    return combined;
+  }
+
+  async function loadFreshCsv(spec) {
+    spec = spec || {};
+    let lastErr;
+    try {
+      return await loadExportAttempts(spec, 'csv');
+    } catch (e) {
+      lastErr = e;
+      if (!spec.recoverRows || !e || ['html', 'login', 'sorry'].indexOf(e.code) < 0) throw e;
+    }
+    try {
+      return await loadByRowWindows(spec);
+    } catch (e) {
+      if (e && e.code === 'partial-data') throw e;
+      throw lastErr || e;
+    }
+  }
+
+  /* 통장이 실패해도 이미 받은 연차·휴원은 저장본 위에 얹는다. 통장 시각은 그대로 둔다. */
+  function applyPartialTabs(prev, extra) {
+    if (!prev || !prev.monthDetails || !Object.keys(prev.monthDetails).length) return null;
+    extra = extra || {};
+    const next = JSON.parse(JSON.stringify(prev));
+    const applied = [];
+    if (extra.leaveRows) {
+      next.leave = parseLeaveRows(extra.leaveRows);
+      applied.push('연차');
+    }
+    if (extra.restRows) {
+      next.restMonths = parseRestRows(extra.restRows);
+      applied.push('휴원');
+    }
+    if (!applied.length) return null;
+    return { data: next, applied: applied };
   }
 
   function ledgerTxnCount(data) {
@@ -1908,6 +2070,7 @@
     classifySheetText: classifySheetText,
     assertSheetMarker: assertSheetMarker,
     loadFreshCsv: loadFreshCsv,
+    applyPartialTabs: applyPartialTabs,
     ledgerTxnCount: ledgerTxnCount,
     refuseShorterLedger: refuseShorterLedger,
     resolveSheetId: resolveSheetId,
