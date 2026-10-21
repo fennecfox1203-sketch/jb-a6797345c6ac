@@ -19,7 +19,7 @@
     return resolved.id;
   })();
 
-  const SHEET_GIDS = { '학생 명단': '0', '통장거래내역': '1723542002', '휴원 기록': '739493373', '연차관리2': '759985960' };
+  const SHEET_GIDS = { '학생 명단': '0', '통장거래내역': '1723542002', '휴원 기록': '739493373', '연차관리': '759985960' };
   const BANK_UPLOAD_API = window.LEDGER_BANK_UPLOAD_API || 'http://127.0.0.1:8787/api/upload-bank';
   const CAT_QUEUE_API = window.LEDGER_CAT_QUEUE_API || 'http://127.0.0.1:8787/api/queue-cat-overrides';
   const CAT_PENDING_API = window.LEDGER_CAT_PENDING_API || 'http://127.0.0.1:8787/api/pending-cat-overrides';
@@ -1387,7 +1387,7 @@ function minusWon(n) {
     });
     return rows;
   }
-  const APP_REV = '20261021d';
+  const APP_REV = '20261021e';
   async function ensureFreshBundle() {
     try {
       const r = await fetch('index.html?t=' + Date.now(), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
@@ -1427,7 +1427,7 @@ function minusWon(n) {
     } else if (name === '학생 명단') {
       spec.marker = '이름';
       spec.markerAny = ['이름', '성명', '성함', '학생명', '학생이름'];
-    } else if (name === '연차관리2') {
+    } else if (name === '연차관리') {
       spec.name = '연차';
       spec.marker = '날짜';
       spec.markerAny = ['날짜', '일자', '사용일'];
@@ -1501,7 +1501,7 @@ function minusWon(n) {
       const bankP = fetchSheetRows('통장거래내역');
       const rosterP = fetchSheetRows('학생 명단').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const restP = fetchSheetRows('휴원 기록').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
-      const leaveP = fetchSheetRows('연차관리2').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
+      const leaveP = fetchSheetRows('연차관리').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const bankRows = await bankP;
       let rosterPack = await rosterP;
       if (rosterPack.err) {

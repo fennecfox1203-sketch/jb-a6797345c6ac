@@ -96,6 +96,37 @@ test('rows without a date and staff header are ignored', function () {
   assert.deepEqual(parsed, { entries: [], staff: [] });
 });
 
+test('연차관리 header grants days and counts use in hours', function () {
+  const rows = [
+    ['날짜', '직원', '종류', '직접 입력 시간', '사용 시간', '사용 일수', '비고', '', '직원', '부여 일수', '부여 시간', '사용 일수', '사용 시간', '잔여 일수', '잔여 시간'],
+    ['2026-05-12', '직원가', '연차', '2.5', '2.5', '0.36', '', '', '직원가', '14', '98', '5', '35', '9', '63'],
+    ['2026-06-04', '직원나', '공가', '0', '0', '0', '', '', '직원나', '10', '70', '7', '49', '3', '21'],
+    ['2026-08-01', '직원가', '오전 반차', '', '', '', '오전'],
+    ['2026-08-02', '직원나', '오후 반차', '', '', '', '오후']
+  ];
+  const parsed = J.parseLeaveRows(rows);
+  assert.deepEqual(parsed.entries.map(function (e) { return [e.date, e.name, e.type, e.hours]; }), [
+    ['2026-08-02', '직원나', '오후 반차', 4],
+    ['2026-08-01', '직원가', '오전 반차', 3],
+    ['2026-06-04', '직원나', '공가', 0],
+    ['2026-05-12', '직원가', '연차', 2.5]
+  ]);
+  assert.equal(parsed.staff[0].grantedDays, 14);
+  assert.equal(parsed.staff[0].grantedHours, 98);
+  assert.equal(parsed.staff[0].usedHours, 35);
+  assert.equal(parsed.staff[0].remainDays, 9);
+  assert.equal(parsed.staff[1].grantedDays, 10);
+  assert.equal(parsed.staff[1].usedHours, 49);
+  assert.equal(parsed.staff[1].remainHours, 21);
+});
+
+test('the dashboard reads the 연차관리 tab, not a second leave tab', function () {
+  const fs = require('node:fs');
+  const src = fs.readFileSync(require('node:path').join(__dirname, '..', 'app.js'), 'utf8');
+  assert.match(src, /'연차관리': '759985960'/);
+  assert.equal(src.indexOf('연차관리2'), -1);
+});
+
 test('demo leave uses the fake staff and the hour rules', function () {
   require('../demo.js');
   const src = globalThis.buildDemoSource();
