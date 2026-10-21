@@ -182,14 +182,31 @@ test('a much shorter ledger does not replace the saved one', function () {
 test('failure view names the reason and the last success, and does not call it current', function () {
   const view = J.syncFailureView(new Error('통장거래내역: 구글이 ‘Sorry’ 안내 페이지를 보냈어요.'), {
     monthDetails: { '2026-01': [{ dir: '수입', amt: 1 }] },
-    cachedHHmm: '14:32'
+    cachedAt: '2026-10-21T02:55:00.000Z',
+    cachedHHmm: '15:10'
   });
   assert.equal(view.kind, 'stale');
-  assert.equal(view.data.cachedHHmm, '14:32');
   assert.match(view.banner, /Sorry|안내 페이지/);
-  assert.match(view.banner, /14:32/);
+  assert.match(view.banner, /10\/21 11:55/);
+  assert.doesNotMatch(view.banner, /15:10/);
   assert.match(view.banner, /바꾸지 않았습니다/);
   assert.doesNotMatch(view.banner, /시트 최신|대체 경로/);
+});
+
+test('a csv body is not rejected just because the type says html or a cell contains html', function () {
+  const csv = J.classifySheetText('이름,메모\n학생가,메모에 <html 글자\n', 'text/html; charset=utf-8', 200);
+  assert.equal(csv.ok, true);
+  const page = J.classifySheetText('<html><body>not a sheet</body></html>', 'text/html', 200);
+  assert.equal(page.ok, false);
+  assert.equal(page.code, 'html');
+});
+
+test('seoul stamp uses Korea time even when the computer clock zone differs', function () {
+  assert.equal(J.seoulStamp(new Date('2026-10-21T02:55:00.000Z')), '10/21 11:55');
+  assert.equal(J.hhmmFromCache({
+    cachedAt: '2026-10-21T02:55:00.000Z',
+    cachedHHmm: '15:10'
+  }), '10/21 11:55');
 });
 
 test('sheet id comes from the hash, and from storage only when the hash has none', function () {

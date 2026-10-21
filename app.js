@@ -1360,10 +1360,24 @@ function minusWon(n) {
     return true;
   }
 
-  function _stamp() {
-    const d = new Date();
-    const p = function (n) { return String(n).padStart(2, '0'); };
-    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  function _stamp() { return J.seoulStamp(new Date()); }
+  function studentsToRosterRows(students) {
+    const header = ['이름', '학년1', '학년2', '상태', '교습비', '학교', '주소', '반유형'];
+    const rows = [header];
+    (students || []).forEach(function (s) {
+      if (!s || !s.name) return;
+      rows.push([
+        s.name,
+        s.grade1 || '',
+        s.grade2 == null ? '' : String(s.grade2),
+        s.status || '',
+        String(s.tuition || 0),
+        s.school || '',
+        s.address || '',
+        s.payType || ''
+      ]);
+    });
+    return rows;
   }
   const FETCH_TRIES = 3;
   const FETCH_TIMEOUT_MS = 20000;
@@ -1459,15 +1473,28 @@ function minusWon(n) {
       if (!SHEET_ID) throw new Error('장부 주소가 올바르지 않아요. 받은 주소 전체(# 뒤까지)로 다시 열어 주세요.');
       if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('인터넷 연결이 없어요. 연결되면 자동으로 다시 불러와요.');
       const bankP = fetchSheetRows('통장거래내역');
-      const rosterP = fetchSheetRows('학생 명단');
+      const rosterP = fetchSheetRows('학생 명단').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const restP = fetchSheetRows('휴원 기록').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
       const leaveP = fetchSheetRows('연차관리2').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
-      const pair = await Promise.all([bankP, rosterP]);
-      const bankRows = pair[0];
-      const rosterRows = pair[1];
+      const bankRows = await bankP;
+      let rosterPack = await rosterP;
+      if (rosterPack.err) {
+        try { rosterPack = { rows: await fetchSheetRows('학생 명단') }; }
+        catch (e) { rosterPack = { err: e }; }
+      }
       const restPack = await restP;
       const leavePack = await leaveP;
-      const nd = J.buildLedger(bankRows, rosterRows);
+      let rosterKept = false;
+      if (!rosterPack.rows) {
+        const prevStudents = DATA && DATA.students;
+        if (rosterPack.err && prevStudents && prevStudents.length) {
+          rosterPack = { rows: studentsToRosterRows(prevStudents), err: rosterPack.err };
+          rosterKept = true;
+        } else {
+          throw rosterPack.err || new Error('학생 명단을 읽지 못했어요.');
+        }
+      }
+      const nd = J.buildLedger(bankRows, rosterPack.rows);
       if (restPack.rows) nd.restMonths = J.parseRestRows(restPack.rows);
       else nd.restMonths = Array.isArray(DATA.restMonths) ? DATA.restMonths.slice() : [];
       if (leavePack.rows) nd.leave = J.parseLeaveRows(leavePack.rows);
@@ -1476,16 +1503,19 @@ function minusWon(n) {
         nd.leave = { entries: (prev.entries || []).slice(), staff: (prev.staff || []).slice() };
       }
       J.refuseShorterLedger(cachedLedger(), nd);
-      nd.syncedAt = _stamp();
       const now = new Date();
-      const p2 = function (n) { return String(n).padStart(2, '0'); };
+      nd.syncedAt = J.seoulStamp(now);
       nd.cachedAt = now.toISOString();
-      nd.cachedHHmm = p2(now.getHours()) + ':' + p2(now.getMinutes());
+      nd.cachedHHmm = nd.syncedAt.split(' ').pop();
       applyNewData(nd);
       try { localStorage.setItem('jangbuCache', JSON.stringify(nd)); } catch (e) {}
       loadNote = null;
       ok = true;
       const warns = [];
+      if (rosterKept) {
+        const why = rosterPack.err && rosterPack.err.message ? rosterPack.err.message : '학생 명단을 읽지 못했어요.';
+        warns.push('학생 명단은 이번에 못 읽어서 이전 명단을 유지합니다. 이유: ' + why);
+      }
       if (restPack.err) {
         const why = restPack.err && restPack.err.message ? restPack.err.message : '휴원 기록을 읽지 못했어요.';
         warns.push('휴원 기록은 이번에 못 읽어서 이전 기록을 유지합니다. 이유: ' + why);
@@ -1496,7 +1526,7 @@ function minusWon(n) {
       }
       if (warns.length) {
         setSyncStatus('마지막 성공 ' + nd.syncedAt);
-        showBanner('통장과 명단은 반영했어요. ' + warns.join(' '), 'warn');
+        showBanner((rosterKept ? '통장은 반영했어요. ' : '통장과 명단은 반영했어요. ') + warns.join(' '), 'warn');
       } else {
         showBanner('');
         setSyncStatus('마지막 성공 ' + nd.syncedAt);

@@ -96,18 +96,43 @@
     return out;
   }
 
-  function seoulYmd(date) {
+  function seoulParts(date) {
     const d = date || nowDate();
     try {
       const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit'
+        timeZone: 'Asia/Seoul', hourCycle: 'h23',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
       }).formatToParts(d);
-      const get = function (t) { return parts.find(function (p) { return p.type === t; }).value; };
-      return get('year') + '-' + get('month') + '-' + get('day');
+      const get = function (t) {
+        const found = parts.find(function (p) { return p.type === t; });
+        return found ? found.value : '';
+      };
+      let hour = get('hour');
+      if (hour === '24') hour = '00';
+      return { y: get('year'), m: get('month'), d: get('day'), h: hour, min: get('minute') };
     } catch (e) {
-      const x = new Date(d);
-      return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+      const x = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+      const p2 = function (n) { return String(n).padStart(2, '0'); };
+      return {
+        y: String(x.getUTCFullYear()),
+        m: p2(x.getUTCMonth() + 1),
+        d: p2(x.getUTCDate()),
+        h: p2(x.getUTCHours()),
+        min: p2(x.getUTCMinutes())
+      };
     }
+  }
+
+  function seoulYmd(date) {
+    const p = seoulParts(date);
+    return p.y + '-' + p.m + '-' + p.d;
+  }
+
+  /* 화면의 마지막 성공 시각. 컴퓨터 시간대가 아니라 한국 날짜와 시각이다. */
+  function seoulStamp(date) {
+    const p = seoulParts(date || nowDate());
+    return Number(p.m) + '/' + Number(p.d) + ' ' + p.h + ':' + p.min;
   }
 
   function currentYmSeoul() { return seoulYmd().slice(0, 7); }
@@ -537,18 +562,20 @@
 
   function hhmmFromCache(cache) {
     if (!cache) return '';
+    const iso = _s(cache.cachedAt);
+    if (iso) {
+      const parsed = new Date(iso);
+      if (!isNaN(parsed.getTime())) return seoulStamp(parsed);
+    }
+    const synced = _s(cache.syncedAt);
+    if (/^\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}$/.test(synced)) return synced;
     if (cache.cachedHHmm && /^\d{1,2}:\d{2}$/.test(String(cache.cachedHHmm))) {
       const m = /^(\d{1,2}):(\d{2})$/.exec(String(cache.cachedHHmm));
       return String(m[1]).padStart(2, '0') + ':' + m[2];
     }
-    const sources = [cache.cachedAt, cache.syncedAt, cache.updated];
-    for (let i = 0; i < sources.length; i++) {
-      const s = _s(sources[i]);
-      if (!s) continue;
-      const m = /(\d{1,2}):(\d{2})/.exec(s);
-      if (m) return String(m[1]).padStart(2, '0') + ':' + m[2];
-    }
-    return '';
+    const updated = _s(cache.updated);
+    const m = /(\d{1,2}):(\d{2})/.exec(updated);
+    return m ? String(m[1]).padStart(2, '0') + ':' + m[2] : '';
   }
 
   /* gviz(/gviz/tq)는 통장 탭 전체를 주지 않는다. 숨긴 행과 머리글이 빠지고
@@ -568,13 +595,14 @@
   function classifySheetText(text, contentType, status) {
     const type = String(contentType || '').toLowerCase();
     const body = String(text == null ? '' : text);
-    const head = body.slice(0, 1200).toLowerCase();
-    const htmlType = type.indexOf('text/html') >= 0 || type.indexOf('xhtml') >= 0;
-    const htmlBody = /^\s*<(!doctype|html)\b/i.test(body) || head.indexOf('<html') >= 0;
-    if (status === 401 || status === 403 || (htmlBody && (head.indexOf('accounts.google.com') >= 0 || head.indexOf('servicelogin') >= 0))) {
+    const head = body.slice(0, 4000).toLowerCase();
+    /* 내용이 CSV면 Content-Type이 html이거나 칸 안에 <html 이 있어도 페이지로 보지 않는다.
+       페이지는 본문이 <!doctype 또는 <html 로 시작할 때만 거절한다. */
+    const htmlBody = /^\s*<(!doctype|html)\b/i.test(body);
+    if (status === 401 || status === 403 || (htmlBody && (head.indexOf('accounts.google.com') >= 0 || head.indexOf('servicelogin') >= 0 || head.indexOf('sign in') >= 0))) {
       return classifyFailure('login', '구글 로그인·권한 화면이 와서 시트를 읽지 못했어요. 링크가 있는 사람이 볼 수 있게 공유돼 있는지 확인해 주세요.');
     }
-    if (htmlType || htmlBody) {
+    if (htmlBody) {
       if (head.indexOf('sorry') >= 0 || head.indexOf('unable to open') >= 0 || head.indexOf('temporarily') >= 0) {
         return classifyFailure('sorry', '구글이 ‘Sorry’ 안내 페이지를 보냈어요. 시트 내용이 아니라서 화면에 반영하지 않았어요.');
       }
@@ -584,7 +612,7 @@
       return classifyFailure('http', '구글이 오류 ' + status + '을 보냈어요. 시트 내용이 아니라서 반영하지 않았어요.');
     }
     if (!body.trim()) return classifyFailure('empty', '응답이 비어 있어요. 반영하지 않았어요.');
-    if (type && type.indexOf('csv') < 0 && type.indexOf('text/plain') < 0 && type.indexOf('octet-stream') < 0
+    if (type && type.indexOf('html') < 0 && type.indexOf('csv') < 0 && type.indexOf('text/plain') < 0 && type.indexOf('octet-stream') < 0
         && type.indexOf('application/vnd.ms-excel') < 0 && type.indexOf('text/comma-separated-values') < 0) {
       return classifyFailure('type', 'CSV가 아닌 형식(' + type.split(';')[0] + ')이라 반영하지 않았어요.');
     }
@@ -1822,6 +1850,7 @@
     syncFailureView: syncFailureView,
     hhmmFromCache: hhmmFromCache,
     seoulYmd: seoulYmd,
+    seoulStamp: seoulStamp,
     currentYmSeoul: currentYmSeoul,
     prevYmSeoul: prevYmSeoul,
     daysUntil: daysUntil,
