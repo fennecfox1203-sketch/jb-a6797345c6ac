@@ -189,7 +189,8 @@ test('failed fetch retries then falls back to cached data', async function () {
   const cache = {
     monthDetails: { '2026-01': [{ dir: '수입', amt: 1000 }] },
     months: [{ ym: '2026-01', income: 1000, expense: 0, fee: 0 }],
-    cachedHHmm: '14:32',
+    cachedAt: '2026-10-08T05:32:00.000Z',
+    cachedHHmm: '15:10',
     syncedAt: '10/8 09:01'
   };
   await assert.rejects(function () {
@@ -215,7 +216,8 @@ test('failed fetch retries then falls back to cached data', async function () {
   assert.equal(view.data, cache);
   assert.match(view.banner, /최신 자료를 불러오지 못했어요/);
   assert.match(view.banner, /학생 명단 불러오기 실패/);
-  assert.match(view.banner, /14:32/);
+  assert.match(view.banner, /10\/8 14:32/);
+  assert.doesNotMatch(view.banner, /15:10/);
   assert.match(view.banner, /바꾸지 않았습니다/);
 
   let gvizSkipped = 0;
