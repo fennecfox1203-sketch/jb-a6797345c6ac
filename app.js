@@ -8,9 +8,15 @@
   const DEMO = new URLSearchParams(location.search).get('demo') === '1';
 
   const SHEET_ID = (function () {
-    const m = /[#&]k=([A-Za-z0-9_-]{20,})/.exec(location.hash || '');
-    if (m) { try { localStorage.setItem('jangbuSheet', m[1]); } catch (e) {} return m[1]; }
-    try { return localStorage.getItem('jangbuSheet') || ''; } catch (e) { return ''; }
+    let stored = '';
+    try { stored = localStorage.getItem('jangbuSheet') || ''; } catch (e) {}
+    const resolved = J.resolveSheetId(location.hash, stored);
+    if (!resolved.id) return '';
+    try { localStorage.setItem('jangbuSheet', resolved.id); } catch (e) {}
+    if (!DEMO && resolved.source === 'storage' && String(location.hash || '').indexOf('k=') < 0) {
+      try { history.replaceState(null, '', location.pathname + location.search + '#k=' + resolved.id); } catch (e) {}
+    }
+    return resolved.id;
   })();
 
   const SHEET_GIDS = { '학생 명단': '0', '통장거래내역': '1723542002', '휴원 기록': '739493373' };
@@ -58,10 +64,12 @@
       box.hidden = true;
       box.textContent = '';
       box.className = 'stale-banner';
+      box.setAttribute('role', 'status');
       return;
     }
     box.hidden = false;
     box.className = 'stale-banner' + (kind && kind !== 'warn' ? ' ' + kind : '');
+    box.setAttribute('role', kind === 'err' ? 'alert' : 'status');
     box.textContent = text;
   }
 
@@ -488,6 +496,7 @@ function minusWon(n) {
     if (DATA.scope || DATA.note) bits.push(esc(DATA.scope || '') + (DATA.note ? ' · ' + esc(DATA.note) : ''));
     bits.push('업데이트 ' + esc(DATA.updated || '—') + ' · 미납=재학 명단−해당월 입금 · 시트 읽기 전용');
     if (DEMO) bits.push('데모 데이터입니다. 네트워크로 시트를 읽지 않습니다.');
+    else if (DATA.syncedAt) bits.push('마지막 성공 ' + esc(DATA.syncedAt));
     $('foot').innerHTML = bits.map(function (b) { return '<div>' + b + '</div>'; }).join('');
   }
 
@@ -1278,115 +1287,31 @@ function minusWon(n) {
     const p = function (n) { return String(n).padStart(2, '0'); };
     return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
-  function _gvizRows(resp) {
-    const t = resp.table, nc = t.cols.length;
-    return (t.rows || []).map(function (r) {
-      const out = [];
-      for (let i = 0; i < nc; i++) {
-        const c = (r.c || [])[i];
-        out.push(c == null ? '' : (c.f != null ? String(c.f) : (c.v == null ? '' : String(c.v))));
-      }
-      return out;
-    });
-  }
   const FETCH_TRIES = 3;
-  const FETCH_TIMEOUT_MS = 15000;
+  const FETCH_TIMEOUT_MS = 20000;
   const FETCH_BACKOFF_MS = [1000, 3000];
   const AUTO_RETRY_MS = [5000, 15000, 30000, 60000, 120000, 300000];
-  let _gvizSeq = 0;
-  async function fetchCsvOnce(name) {
-    const gid = SHEET_GIDS[name];
-    if (gid == null || !SHEET_ID) throw new Error(name + ' 불러오기 실패');
-    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const tm = setTimeout(function () { if (ctrl) ctrl.abort(); }, FETCH_TIMEOUT_MS);
-    try {
-      const r = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/export?format=csv&gid=' + gid + '&t=' + Date.now(), {
-        cache: 'no-store',
-        credentials: 'omit',
-        redirect: 'follow',
-        signal: ctrl ? ctrl.signal : undefined
-      });
-      if (!r.ok) throw new Error(name + ' 불러오기 실패');
-      const t = await r.text();
-      if (!t || /^\s*<(!doctype|html)/i.test(t)) throw new Error(name + ' 불러오기 실패');
-      return J.parseCsv(t);
-    } catch (e) {
-      if (e && e.name === 'AbortError') throw new Error(name + ' 응답 없음');
-      if (e && e.name === 'TypeError') throw new Error(name + ' 연결 실패 (네트워크)');
-      throw e;
-    } finally {
-      clearTimeout(tm);
-    }
-  }
-  function fetchSheetRowsGviz(name) {
-    return new Promise(function (resolve, reject) {
-      const cb = '__jangbuCb' + (++_gvizSeq) + '_' + Date.now();
-      const sc = document.createElement('script');
-      let settled = false;
-      const finish = function (fn) {
-        if (settled) return;
-        settled = true;
-        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
-        sc.remove();
-        clearTimeout(tm);
-        fn();
-      };
-      const tm = setTimeout(function () { finish(function () { reject(new Error(name + ' 응답 없음')); }); }, FETCH_TIMEOUT_MS);
-      window[cb] = function (resp) {
-        finish(function () {
-          if (!resp || resp.status === 'error' || !resp.table) reject(new Error(name + ' 읽기 실패 (시트 공개 설정을 확인해 주세요)'));
-          else resolve(_gvizRows(resp));
-        });
-      };
-      sc.onerror = function () { finish(function () { reject(new Error(name + ' 불러오기 실패')); }); };
-      sc.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json;responseHandler:' + cb + '&headers=0&sheet=' + encodeURIComponent(name) + '&t=' + Date.now();
-      document.head.appendChild(sc);
-    });
-  }
-  async function fetchGvizFlexible(name) {
-    const names = J.sheetTitleVariants(name);
-    let last;
-    for (let i = 0; i < names.length; i++) {
-      try { return await fetchSheetRowsGviz(names[i]); }
-      catch (e) { last = e; }
-    }
-    throw last || new Error(name + ' 불러오기 실패');
-  }
-  async function discoverSheetTitles() {
-    if (!SHEET_ID) return [];
-    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const tm = setTimeout(function () { if (ctrl) ctrl.abort(); }, FETCH_TIMEOUT_MS);
-    try {
-      const r = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/edit?usp=sharing&rm=minimal', {
-        cache: 'no-store',
-        signal: ctrl ? ctrl.signal : undefined
-      });
-      if (!r.ok) return [];
-      return J.parseSheetTitles(await r.text());
-    } catch (e) {
-      return [];
-    } finally {
-      clearTimeout(tm);
-    }
-  }
-  function validatorFor(name) {
-    return name === '통장거래내역' ? J.checkBankRows : function () {};
-  }
+  const AUTO_GAP_MS = 15000;
   function fetchSheetRows(name) {
-    const validate = validatorFor(name);
-    return J.loadCsvThenGviz(function () { return fetchCsvOnce(name); }, function () { return fetchGvizFlexible(name); },
-      { tries: FETCH_TRIES, backoffs: FETCH_BACKOFF_MS, validate: validate }).catch(function (err) {
-      if (err && err.code === 'partial-data') throw err;
-      return discoverSheetTitles().then(function (titles) {
-        const picked = J.pickSheetTitle(titles, name);
-        if (!picked || J.sheetTitleVariants(name).indexOf(picked) >= 0) throw err;
-        return fetchSheetRowsGviz(picked).then(function (rows) {
-          validate(rows);
-          rows.viaFallback = true;
-          return rows;
-        });
-      });
-    });
+    const gid = SHEET_GIDS[name];
+    if (gid == null || !SHEET_ID) return Promise.reject(new Error(name + ': 장부 주소가 없어요.'));
+    const spec = {
+      id: SHEET_ID,
+      gid: gid,
+      name: name,
+      tries: FETCH_TRIES,
+      backoffs: FETCH_BACKOFF_MS,
+      timeoutMs: FETCH_TIMEOUT_MS,
+      fetch: function (url, opts) { return window.fetch(url, opts); }
+    };
+    if (name === '통장거래내역') {
+      spec.marker = '거래일자';
+      spec.validate = J.checkBankRows;
+    } else if (name === '학생 명단') {
+      spec.marker = '이름';
+      spec.markerAny = ['이름', '성명', '성함', '학생명', '학생이름'];
+    }
+    return J.loadFreshCsv(spec);
   }
 
   function cachedLedger() {
@@ -1397,14 +1322,14 @@ function minusWon(n) {
     const view = J.syncFailureView(err, cachedLedger());
     loadNote = view;
     try { console.error('sync failed', err); } catch (e) {}
+    const when = J.hhmmFromCache(DATA);
     if (view.kind === 'stale') {
-      setSyncStatus('이전 자료 ' + (J.hhmmFromCache(DATA) || ''));
-      const why = err && err.message ? String(err.message).slice(0, 80) : '';
-      showBanner(view.banner + (why ? ' · 이유: ' + why : ''), 'warn');
+      setSyncStatus('불러오기 실패 · 마지막 성공 ' + (when || '시각 없음'));
+      showBanner(view.banner, 'err');
       return;
     }
     if (view.kind === 'schema') {
-      setSyncStatus('머리글 확인');
+      setSyncStatus('머리글 확인' + (when ? (' · 마지막 성공 ' + when) : ''));
       showBanner(view.banner, 'err');
       return;
     }
@@ -1419,13 +1344,21 @@ function minusWon(n) {
     clearTimeout(autoRetryTimer);
     const wait = AUTO_RETRY_MS[Math.min(autoRetryCount, AUTO_RETRY_MS.length - 1)];
     autoRetryCount++;
-    autoRetryTimer = setTimeout(function () {
-      if (document.visibilityState === 'hidden') return; /* 다시 보일 때 visibilitychange가 부른다 */
-      syncFromSheet(true);
-    }, wait);
+    const tick = function () {
+      if (document.visibilityState === 'hidden') {
+        autoRetryTimer = setTimeout(tick, 2000);
+        return;
+      }
+      syncFromSheet(true, { force: true });
+    };
+    autoRetryTimer = setTimeout(tick, wait);
   }
-  function syncFromSheet(silent) {
+  let lastAuto = 0;
+  function syncFromSheet(silent, opts) {
+    const force = !!(opts && (opts.manual || opts.force));
     if (syncInFlight) return syncInFlight;
+    if (!force && lastAuto && (Date.now() - lastAuto) < AUTO_GAP_MS) return Promise.resolve(false);
+    lastAuto = Date.now();
     clearTimeout(autoRetryTimer);
     syncInFlight = syncOnce(silent).then(function (ok) {
       if (ok) autoRetryCount = 0;
@@ -1438,18 +1371,22 @@ function minusWon(n) {
     let ok = false;
     const btn = $('syncBtn');
     if (btn) { btn.disabled = true; btn.textContent = '동기화 중'; }
-    showBanner('');
-    setSyncStatus('구글 시트에서 불러오는 중');
+    const savedAt = J.hhmmFromCache(cachedLedger());
+    setSyncStatus(savedAt ? ('시트 확인 중 · 저장본 ' + savedAt) : '구글 시트에서 불러오는 중');
     try {
       if (!SHEET_ID) throw new Error('장부 주소가 올바르지 않아요. 받은 주소 전체(# 뒤까지)로 다시 열어 주세요.');
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('인터넷 연결이 없어요 (연결되면 자동으로 다시 불러와요)');
-      const pack = await Promise.all([
-        fetchSheetRows('통장거래내역'),
-        fetchSheetRows('학생 명단'),
-        fetchSheetRows('휴원 기록').catch(function () { return []; })
-      ]);
-      const nd = J.buildLedger(pack[0], pack[1]);
-      nd.restMonths = J.parseRestRows(pack[2]);
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('인터넷 연결이 없어요. 연결되면 자동으로 다시 불러와요.');
+      const bankP = fetchSheetRows('통장거래내역');
+      const rosterP = fetchSheetRows('학생 명단');
+      const restP = fetchSheetRows('휴원 기록').then(function (rows) { return { rows: rows }; }, function (err) { return { err: err }; });
+      const pair = await Promise.all([bankP, rosterP]);
+      const bankRows = pair[0];
+      const rosterRows = pair[1];
+      const restPack = await restP;
+      const nd = J.buildLedger(bankRows, rosterRows);
+      if (restPack.rows) nd.restMonths = J.parseRestRows(restPack.rows);
+      else nd.restMonths = Array.isArray(DATA.restMonths) ? DATA.restMonths.slice() : [];
+      J.refuseShorterLedger(cachedLedger(), nd);
       nd.syncedAt = _stamp();
       const now = new Date();
       const p2 = function (n) { return String(n).padStart(2, '0'); };
@@ -1458,10 +1395,15 @@ function minusWon(n) {
       applyNewData(nd);
       try { localStorage.setItem('jangbuCache', JSON.stringify(nd)); } catch (e) {}
       loadNote = null;
-      showBanner('');
       ok = true;
-      const viaFallback = pack.some(function (r) { return r && r.viaFallback; });
-      setSyncStatus('시트 최신 ' + nd.syncedAt + (viaFallback ? ' (대체 경로)' : ''));
+      if (restPack.err) {
+        const why = restPack.err && restPack.err.message ? restPack.err.message : '휴원 기록을 읽지 못했어요.';
+        setSyncStatus('마지막 성공 ' + nd.syncedAt);
+        showBanner('통장과 명단은 반영했어요. 휴원 기록은 이번에 못 읽어서 이전 기록을 유지합니다. 이유: ' + why, 'warn');
+      } else {
+        showBanner('');
+        setSyncStatus('마지막 성공 ' + nd.syncedAt);
+      }
     } catch (e) {
       showSyncFailure(e);
     } finally {
@@ -1516,7 +1458,7 @@ function minusWon(n) {
   applyTabUI();
   $('syncBtn').onclick = function () {
     if (DEMO) bootDemo();
-    else syncFromSheet(false);
+    else syncFromSheet(false, { manual: true });
   };
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && state.peek) { state.peek = null; render(); }
@@ -1525,17 +1467,23 @@ function minusWon(n) {
   render();
   if (DEMO) bootDemo();
   else {
-    /* Mac이 잠자기에서 깨면 화면이 먼저 보이고 네트워크는 조금 늦게 붙는다. 잠깐 기다렸다가 부른다. */
+    /* 잠자기에서 깨면 visibilitychange가 안 올 수 있다. 포커스·페이지 복원·온라인·주기 확인을 같이 쓴다. */
     let wakeTimer = null;
+    function soon(force) {
+      clearTimeout(wakeTimer);
+      wakeTimer = setTimeout(function () { syncFromSheet(true, force ? { force: true } : null); }, 800);
+    }
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState !== 'visible') return;
-      clearTimeout(wakeTimer);
-      wakeTimer = setTimeout(function () { syncFromSheet(true); }, 1500);
+      soon(true);
     });
-    window.addEventListener('online', function () {
-      clearTimeout(wakeTimer);
-      wakeTimer = setTimeout(function () { autoRetryCount = 0; syncFromSheet(true); }, 1000);
-    });
-    syncFromSheet(true);
+    window.addEventListener('online', function () { autoRetryCount = 0; soon(true); });
+    window.addEventListener('pageshow', function () { soon(false); });
+    window.addEventListener('focus', function () { soon(false); });
+    setInterval(function () {
+      if (document.visibilityState === 'hidden') return;
+      syncFromSheet(true);
+    }, 60000);
+    syncFromSheet(true, { force: true });
   }
 })();

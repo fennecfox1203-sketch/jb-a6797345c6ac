@@ -213,7 +213,10 @@ test('failed fetch retries then falls back to cached data', async function () {
   const view = J.syncFailureView(new Error('학생 명단 불러오기 실패'), cache);
   assert.equal(view.kind, 'stale');
   assert.equal(view.data, cache);
-  assert.equal(view.banner, '최신 자료를 불러오지 못해 14:32 기준 자료를 보여 줘요');
+  assert.match(view.banner, /최신 자료를 불러오지 못했어요/);
+  assert.match(view.banner, /학생 명단 불러오기 실패/);
+  assert.match(view.banner, /14:32/);
+  assert.match(view.banner, /바꾸지 않았습니다/);
 
   let gvizSkipped = 0;
   const ok = await J.loadRowsRetry(function () {
