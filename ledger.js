@@ -55,7 +55,8 @@
     return raw;
   }
 
-  function parseCsv(text) {
+  function parseCsv(text, sep) {
+    const delimiter = sep === '\t' ? '\t' : ',';
     const rows = [];
     let row = [], f = '', q = false;
     const src = String(text || '').replace(/^\uFEFF/, '');
@@ -67,12 +68,21 @@
           else q = false;
         } else f += c;
       } else if (c === '"') q = true;
-      else if (c === ',') { row.push(f); f = ''; }
+      else if (c === delimiter) { row.push(f); f = ''; }
       else if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; }
       else if (c !== '\r') f += c;
     }
     if (f !== '' || row.length) { row.push(f); rows.push(row); }
     return rows;
+  }
+
+  /* 첫 줄에 탭이 더 많으면 TSV. 로그인된 브라우저가 CSV 주소에서 HTML을 줄 때
+     같은 시트의 TSV 내보내기를 읽기 위해 구분한다. */
+  function csvDelimiter(text) {
+    const first = String(text || '').split(/\r?\n/, 1)[0];
+    const tabs = (first.match(/\t/g) || []).length;
+    const commas = (first.match(/,/g) || []).length;
+    return tabs > commas ? '\t' : ',';
   }
 
   function parseRestRows(rows) {
@@ -581,11 +591,26 @@
   /* gviz(/gviz/tq)는 통장 탭 전체를 주지 않는다. 숨긴 행과 머리글이 빠지고
      최근 날짜 칸이 빈 일부만 온다. 그 결과를 성공으로 저장하면 새로고침이
      된 것처럼 보이면서 최신 거래가 사라진다. CSV 내보내기만 반영한다. */
-  function sheetExportUrl(id, gid, nonce, base) {
+  function sheetExportUrl(id, gid, nonce, base, format) {
     const root = base || ('https://docs.google.com/spreadsheets/d/' + encodeURIComponent(id) + '/export');
     const join = root.indexOf('?') >= 0 ? '&' : '?';
-    return root + join + 'format=csv&gid=' + encodeURIComponent(String(gid))
+    const fmt = format === 'tsv' ? 'tsv' : 'csv';
+    return root + join + 'format=' + fmt + '&gid=' + encodeURIComponent(String(gid))
       + '&t=' + encodeURIComponent(String(nonce));
+  }
+
+  /* 로그인된 구글 창은 내보내기 주소에 시트 화면 HTML을 돌려줄 때가 있다.
+     그 안에 실제 파일 주소가 있으면 그 주소만 다시 받는다. 다른 주소는 따라가지 않는다. */
+  function sheetFileUrlFromHtml(html) {
+    const raw = String(html || '')
+      .replace(/\\u003d/gi, '=')
+      .replace(/\\u0026/gi, '&')
+      .replace(/&amp;/g, '&');
+    const file = raw.match(/https:\/\/doc-[a-z0-9-]+\.googleusercontent\.com\/export\/[^\s"'<>\\]+/i);
+    if (file) return file[0];
+    const confirm = raw.match(/https:\/\/docs\.google\.com\/spreadsheets\/[^\s"'<>\\]*[?&]confirm=[^\s"'<>\\]+/i);
+    if (confirm && /(?:^|[?&])format=(csv|tsv)(?:&|$)/i.test(confirm[0])) return confirm[0];
+    return '';
   }
 
   function classifyFailure(code, message) {
@@ -613,7 +638,8 @@
     }
     if (!body.trim()) return classifyFailure('empty', '응답이 비어 있어요. 반영하지 않았어요.');
     if (type && type.indexOf('html') < 0 && type.indexOf('csv') < 0 && type.indexOf('text/plain') < 0 && type.indexOf('octet-stream') < 0
-        && type.indexOf('application/vnd.ms-excel') < 0 && type.indexOf('text/comma-separated-values') < 0) {
+        && type.indexOf('application/vnd.ms-excel') < 0 && type.indexOf('text/comma-separated-values') < 0
+        && type.indexOf('tab-separated') < 0) {
       return classifyFailure('type', 'CSV가 아닌 형식(' + type.split(';')[0] + ')이라 반영하지 않았어요.');
     }
     return { ok: true, text: body };
@@ -635,42 +661,71 @@
     return err;
   }
 
-  async function readOneCsv(fetchImpl, url, spec) {
-    spec = spec || {};
-    const name = spec.name || '시트';
-    const timeoutMs = spec.timeoutMs || 15000;
+  function sheetFetchInit(spec) {
+    const timeoutMs = (spec && spec.timeoutMs) || 15000;
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const tm = setTimeout(function () { if (ctrl) ctrl.abort(); }, timeoutMs);
-    try {
-      const r = await fetchImpl(url, {
+    return {
+      clear: function () { clearTimeout(tm); },
+      init: {
         cache: 'no-store',
         credentials: 'omit',
         redirect: 'follow',
+        referrerPolicy: 'no-referrer',
+        headers: { Accept: 'text/csv, text/tab-separated-values, text/plain, */*' },
         signal: ctrl ? ctrl.signal : undefined
-      });
+      }
+    };
+  }
+
+  async function fetchSheetText(fetchImpl, url, spec) {
+    const bag = sheetFetchInit(spec);
+    try {
+      const r = await fetchImpl(url, bag.init);
       const text = await r.text();
       const contentType = r.headers && r.headers.get ? (r.headers.get('content-type') || '') : '';
-      const judged = classifySheetText(text, contentType, r.status);
-      if (!judged.ok) throw sheetError(name, judged.code, judged.message);
-      const rows = parseCsv(judged.text);
-      const markers = (spec.markerAny && spec.markerAny.length) ? spec.markerAny : (spec.marker ? [spec.marker] : []);
-      if (markers.length) {
-        const want = markers.map(headerKey);
-        let found = false;
-        const limit = Math.min(rows.length, 15);
-        for (let i = 0; i < limit && !found; i++) {
-          found = (rows[i] || []).some(function (c) { return want.indexOf(headerKey(c)) >= 0; });
-        }
-        if (!found) assertSheetMarker(rows, markers[0], name);
+      return { status: r.status, text: text, contentType: contentType };
+    } finally {
+      bag.clear();
+    }
+  }
+
+  function rowsFromSheetBody(got, spec) {
+    const name = spec.name || '시트';
+    const judged = classifySheetText(got.text, got.contentType, got.status);
+    if (!judged.ok) throw sheetError(name, judged.code, judged.message);
+    const rows = parseCsv(judged.text, csvDelimiter(judged.text));
+    const markers = (spec.markerAny && spec.markerAny.length) ? spec.markerAny : (spec.marker ? [spec.marker] : []);
+    if (markers.length) {
+      const want = markers.map(headerKey);
+      let found = false;
+      const limit = Math.min(rows.length, 15);
+      for (let i = 0; i < limit && !found; i++) {
+        found = (rows[i] || []).some(function (c) { return want.indexOf(headerKey(c)) >= 0; });
       }
-      if (spec.validate) spec.validate(rows);
-      return rows;
+      if (!found) assertSheetMarker(rows, markers[0], name);
+    }
+    if (spec.validate) spec.validate(rows);
+    return rows;
+  }
+
+  async function readOneCsv(fetchImpl, url, spec) {
+    spec = spec || {};
+    const name = spec.name || '시트';
+    try {
+      const got = await fetchSheetText(fetchImpl, url, spec);
+      try {
+        return rowsFromSheetBody(got, spec);
+      } catch (e) {
+        const recoverable = e && (e.code === 'html' || e.code === 'login' || e.code === 'sorry');
+        const next = recoverable ? sheetFileUrlFromHtml(got.text) : '';
+        if (!next || next === url) throw e;
+        return rowsFromSheetBody(await fetchSheetText(fetchImpl, next, spec), spec);
+      }
     } catch (e) {
       if (e && typeof e.code === 'string') throw e;
       if (e && e.name === 'AbortError') throw sheetError(name, 'timeout', '응답이 늦어 끊었어요. 다시 시도합니다.');
       throw sheetError(name, 'network', '연결이 끊겼거나 브라우저가 구글 응답을 막았어요. 다시 시도합니다.');
-    } finally {
-      clearTimeout(tm);
     }
   }
 
@@ -681,13 +736,18 @@
     const sleep = spec.sleep || delayMs;
     const fetchImpl = spec.fetch;
     let lastErr;
+    let format = 'csv';
     for (let i = 0; i < tries; i++) {
       const nonce = typeof spec.now === 'function' ? spec.now(i) : (Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 8));
-      const url = sheetExportUrl(spec.id, spec.gid, nonce, spec.urlBase);
+      const url = sheetExportUrl(spec.id, spec.gid, nonce, spec.urlBase, format);
       try {
         return await readOneCsv(fetchImpl, url, spec);
       } catch (e) {
         lastErr = e;
+        /* CSV 주소가 시트 화면 HTML이면 같은 탭의 TSV를 받는다. TSV도 전체 행이다. */
+        if (e && (e.code === 'html' || e.code === 'login' || e.code === 'sorry')) {
+          format = format === 'csv' ? 'tsv' : 'csv';
+        }
         if (i < tries - 1) await sleep(backoffs[i] != null ? backoffs[i] : backoffs[backoffs.length - 1] || 0);
       }
     }
@@ -1841,6 +1901,7 @@
     loadCsvThenGviz: loadCsvThenGviz,
     checkBankRows: checkBankRows,
     sheetExportUrl: sheetExportUrl,
+    sheetFileUrlFromHtml: sheetFileUrlFromHtml,
     classifySheetText: classifySheetText,
     assertSheetMarker: assertSheetMarker,
     loadFreshCsv: loadFreshCsv,

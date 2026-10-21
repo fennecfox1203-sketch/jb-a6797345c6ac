@@ -687,7 +687,7 @@ function minusWon(n) {
     const summary = state.salesView !== 'detail';
     let pts = J.salesPoints(DATA, currentExcluded());
     if (summary) pts = sliceYm(pts, cur);
-    const chart = C.salesBars(pts, { summary: summary });
+    const chart = C.salesBars(pts, { summary: summary, compact: summary });
     if (!summary) {
       const rows = goalRows();
       p.innerHTML = backBtn('backSales', '← 목표')
@@ -704,10 +704,12 @@ function minusWon(n) {
     }
 
     p.innerHTML = '<div class="goal-grid"><button type="button" class="card go" id="curFeeCard"><div class="hint">이번 달 교습비 · ' + esc(J.koShortYm(cur)) + '</div><div class="hero" style="color:var(--fee)">' + J.won(curSales) + '</div><div class="hint">1차 목표 ' + J.won(J.SALES_GOAL_1) + ' · ' + pct + '%</div><div class="prog"><span style="width:' + pct + '%"></span></div><div class="hint" style="margin-top:8px">' + (gap > 0 ? '1차 목표까지 ' + J.won(gap) : '1차 목표 초과 ' + J.won(-gap)) + '</div><div class="hint">도넛 상세</div></button><button type="button" class="card go" id="ddayCard"><div class="hint">1차 목표 1,000만</div><div class="dday">' + ddayLabel + '</div><div class="hint">2026.12.31까지</div><div class="hint" style="margin-top:10px">기준은 교습비 납부 합계</div><div class="hint">디데이 달력</div></button></div>'
+      + '<div class="home-board">'
       + chartCard({ id: 'salesChart', scrollId: 'salesHomeScroll', summary: true, hint: '최근 9개월 · 누르면 전체', svg: chart.svg, legend: [
         { color: 'var(--fee)', label: '이번 달' }, { color: 'var(--exp)', label: '미납 있는 달' }
       ] })
-      + leaveHomeHtml();
+      + leaveHomeHtml()
+      + '</div>';
     bindPress('salesChart', function () { goSalesChartDetail(); });
     $('curFeeCard').onclick = function () { state.salesView = 'feeDonut'; state.feeMonth = cur; render(); };
     $('ddayCard').onclick = function () { state.salesView = 'ddayCal'; render(); };
@@ -739,9 +741,15 @@ function minusWon(n) {
   function leaveHomeHtml() {
     const staff = leavePack().staff;
     const body = staff.length
-      ? '<div class="leave-grid">' + staff.map(function (st) { return leaveCard(st, false); }).join('') + '</div>'
+      ? '<div class="leave-table"><div class="leave-tr head"><span>직원</span><span>부여</span><span>사용</span><span>잔여</span></div>'
+        + staff.map(function (st) {
+          return '<button type="button" class="leave-tr" data-leave="' + esc(st.name) + '"><span>' + esc(st.name) + '</span><span>'
+            + esc(leaveBoth(st.grantedDays, st.grantedHours)) + '</span><span>'
+            + esc(leaveBoth(st.usedDays, st.usedHours)) + '</span><span>'
+            + esc(leaveBoth(st.remainDays, st.remainHours)) + '</span></button>';
+        }).join('') + '</div>'
       : emptyBox('연차 기록이 없습니다');
-    return '<div class="card leave-home"><h2>연차</h2><div class="hint">직원별 부여 · 사용 · 잔여. 카드를 누르면 내역.</div>' + body + '</div>';
+    return '<div class="card leave-home"><h2>연차</h2><div class="hint">부여 · 사용 · 잔여. 줄을 누르면 내역.</div>' + body + '</div>';
   }
   function bindLeaveJumps(root) {
     (root || document).querySelectorAll('[data-leave]').forEach(function (b) {
@@ -1379,6 +1387,23 @@ function minusWon(n) {
     });
     return rows;
   }
+  const APP_REV = '20261021d';
+  async function ensureFreshBundle() {
+    try {
+      const r = await fetch('index.html?t=' + Date.now(), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      if (!r.ok) return false;
+      const text = await r.text();
+      const m = /app\.js\?v=([0-9A-Za-z]+)/.exec(text);
+      if (!m || m[1] === APP_REV) return false;
+      const guard = 'jangbuRev';
+      if (sessionStorage.getItem(guard) === m[1]) return false;
+      sessionStorage.setItem(guard, m[1]);
+      location.replace(location.pathname + location.search + location.hash);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
   const FETCH_TRIES = 3;
   const FETCH_TIMEOUT_MS = 20000;
   const FETCH_BACKOFF_MS = [1000, 3000];
@@ -1467,6 +1492,7 @@ function minusWon(n) {
     let ok = false;
     const btn = $('syncBtn');
     if (btn) { btn.disabled = true; btn.textContent = '동기화 중'; }
+    if (await ensureFreshBundle()) return false;
     const savedAt = J.hhmmFromCache(cachedLedger());
     setSyncStatus(savedAt ? ('시트 확인 중 · 저장본 ' + savedAt) : '구글 시트에서 불러오는 중');
     try {

@@ -95,6 +95,7 @@ test('a sorry page is retried, then a fake csv is accepted and cache-busted', as
     assert.equal(opts[0].cache, 'no-store');
     assert.equal(opts[0].credentials, 'omit');
     assert.equal(opts[0].redirect, 'follow');
+    assert.equal(opts[0].referrerPolicy, 'no-referrer');
     assert.ok(String(opts[0].signal));
   } finally {
     await close(live.server);
@@ -217,6 +218,68 @@ test('sheet id comes from the hash, and from storage only when the hash has none
   assert.equal(fromStore.source, 'storage');
   assert.equal(fromStore.id, 'storedstoredstoredstored');
   assert.deepEqual(J.resolveSheetId('#k=short', ''), { id: '', source: '' });
+});
+
+test('an html shell with a file link is followed, and a bare shell retries as tsv', async function () {
+  const file = 'https://doc-0s-sheets.googleusercontent.com/export/abc/file?format=csv&gid=1';
+  const shell = '<!DOCTYPE html><html><body>sheet app <a href="' + file + '">file</a></body></html>';
+  const seen = [];
+  const rows = await J.loadFreshCsv({
+    id: 'fake-sheet',
+    gid: '1',
+    name: '통장거래내역',
+    marker: '거래일자',
+    validate: J.checkBankRows,
+    tries: 1,
+    timeoutMs: 3000,
+    fetch: function (url, init) {
+      seen.push(url);
+      assert.equal(init.credentials, 'omit');
+      assert.equal(init.referrerPolicy, 'no-referrer');
+      const body = url.indexOf('googleusercontent.com/export/') >= 0 ? FAKE_CSV : shell;
+      const type = body === FAKE_CSV ? 'text/csv' : 'text/html';
+      return Promise.resolve(new Response(body, { status: 200, headers: { 'content-type': type } }));
+    }
+  });
+  assert.equal(rows[0][0], '거래일자');
+  assert.ok(seen.some(function (s) { return s.indexOf('googleusercontent.com/export/') >= 0; }));
+  assert.equal(J.sheetFileUrlFromHtml('<html>https://example.com/steal</html>'), '');
+  assert.match(J.sheetFileUrlFromHtml(shell), /googleusercontent\.com\/export\//);
+
+  const formats = [];
+  const htmlOnly = await listen(function (req, res) {
+    const u = new URL(req.url, 'http://127.0.0.1');
+    formats.push(u.searchParams.get('format'));
+    if (u.searchParams.get('format') === 'tsv') {
+      res.writeHead(200, { 'content-type': 'text/tab-separated-values' });
+      res.end(FAKE_CSV.replace(/,/g, '\t'));
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end('<!DOCTYPE html><html><body>sheet app only</body></html>');
+  });
+  try {
+    const rows = await J.loadFreshCsv({
+      id: 'fake-sheet',
+      gid: '9',
+      name: '통장거래내역',
+      marker: '거래일자',
+      validate: J.checkBankRows,
+      urlBase: 'http://127.0.0.1:' + htmlOnly.port + '/export',
+      tries: 2,
+      backoffs: [0],
+      sleep: function () { return Promise.resolve(); },
+      now: function (i) { return 't-' + i; },
+      timeoutMs: 3000,
+      fetch: fetch
+    });
+    assert.deepEqual(formats, ['csv', 'tsv']);
+    assert.equal(rows[1][0], '2026-10-02');
+    assert.equal(J.sheetFileUrlFromHtml('<html>https://example.com/steal</html>'), '');
+    assert.match(J.sheetFileUrlFromHtml(shell), /googleusercontent\.com\/export\//);
+  } finally {
+    await close(htmlOnly.server);
+  }
 });
 
 test('a network failure is a Korean error, not an empty success', async function () {
