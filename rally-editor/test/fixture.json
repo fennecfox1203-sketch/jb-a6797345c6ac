@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "videoId": "OJ2TnebrERo",
+  "title": "2026년 10월 9일",
+  "url": "https://www.youtube.com/watch?v=OJ2TnebrERo",
+  "firstServer": "near",
+  "target": 25,
+  "winByTwo": false,
+  "cap": 30,
+  "cameraBehindNear": true,
+  "duration": 1331,
+  "videoName": "2026-10-09.mp4",
+  "names": { "near": "근거리", "far": "원거리" },
+  "points": [
+    { "winner": "near", "serveStart": 1, "rallyStart": 2, "endStart": 5, "endOut": 6.5 },
+    { "winner": "far", "serveStart": 10, "rallyStart": 11, "endStart": 14, "endOut": 15 }
+  ]
+}

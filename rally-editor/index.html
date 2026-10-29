@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#10140f">
+<title>랠리 편집 · 사막여우</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2310140f'/%3E%3Crect x='2' y='7' width='12' height='2' fill='%23d6ff4a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css?v=2">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <p class="eyebrow">사막여우 · 배드민턴</p>
+      <h1>서브 → 랠리 → 랠리종료</h1>
+      <p class="lede" id="sourceLine"></p>
+    </div>
+    <div class="source-actions">
+      <a id="sourceLink" href="https://www.youtube.com/watch?v=OJ2TnebrERo" target="_blank" rel="noopener">최신 영상 열기</a>
+      <button type="button" class="primary" id="openFile">영상 파일 열기</button>
+      <button type="button" id="sampleBtn">샘플로 연습</button>
+      <input id="file" type="file" accept="video/*" hidden>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="stage">
+      <div class="screen">
+        <video id="video" playsinline preload="metadata"></video>
+        <div id="overlay" class="overlay" hidden>
+          <div class="overlay-top">
+            <span id="overlayScore" class="pill"></span>
+            <span id="overlayPhase" class="pill phase"></span>
+          </div>
+          <p id="overlayHint" class="hintpill"></p>
+        </div>
+        <div id="empty" class="empty">
+          <p>가장 최근 영상은 2026년 10월 9일, 22분 11초입니다.</p>
+          <p>유튜브 스튜디오에서 받은 파일을 열면 서브, 랠리, 랠리종료 순서로 자를 수 있습니다.</p>
+          <button type="button" class="primary" id="emptyOpen">영상 파일 열기</button>
+        </div>
+      </div>
+      <div class="transport">
+        <button type="button" id="play" class="play">재생</button>
+        <input id="seek" type="range" min="0" max="1" value="0" step="0.01" aria-label="재생 위치">
+        <span id="time" class="time">0:00.00 / 0:00.00</span>
+        <label class="rate">속도
+          <select id="rate" aria-label="재생 속도">
+            <option value="1">1×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+          </select>
+        </label>
+      </div>
+      <p id="fileNote" class="note"></p>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <p id="rule" class="rule"></p>
+        <div id="callout" class="callout">화면 왼쪽에서 서브</div>
+        <p id="calloutSub" class="sub"></p>
+        <div class="scores">
+          <div class="score near">
+            <span id="nearNameLabel">근거리</span>
+            <strong id="nearScore">0</strong>
+          </div>
+          <div class="score far">
+            <span id="farNameLabel">원거리</span>
+            <strong id="farScore">0</strong>
+          </div>
+        </div>
+        <div id="court" class="court"></div>
+        <p id="cameraNote" class="note"></p>
+      </section>
+
+      <section class="panel">
+        <div class="phases">
+          <span id="chipServe">서브</span>
+          <span class="arrow">→</span>
+          <span id="chipRally">랠리</span>
+          <span class="arrow">→</span>
+          <span id="chipEnd">랠리종료</span>
+        </div>
+        <ol class="steps">
+          <li id="stepServe">
+            <label for="serveTime">서브 시작 <kbd>S</kbd></label>
+            <button type="button" id="markServe">지금</button>
+            <input id="serveTime" type="number" min="0" step="0.01" inputmode="decimal" aria-label="서브 시작 초">
+          </li>
+          <li id="stepRally">
+            <label for="rallyTime">랠리 시작 <kbd>R</kbd></label>
+            <button type="button" id="markRally">지금</button>
+            <input id="rallyTime" type="number" min="0" step="0.01" inputmode="decimal" aria-label="랠리 시작 초">
+          </li>
+          <li id="stepEnd">
+            <label for="endTime">랠리종료 시작 <kbd>E</kbd></label>
+            <button type="button" id="markEnd">지금</button>
+            <input id="endTime" type="number" min="0" step="0.01" inputmode="decimal" aria-label="랠리종료 시작 초">
+          </li>
+          <li id="stepOut">
+            <label for="outTime">랠리종료 끝</label>
+            <button type="button" id="markOut">지금</button>
+            <input id="outTime" type="number" min="0" step="0.01" inputmode="decimal" aria-label="랠리종료 끝 초">
+          </li>
+        </ol>
+        <p id="draftError" class="warn" hidden></p>
+        <div class="award">
+          <button type="button" id="winNear" class="win near"><span id="winNearText">근거리 득점</span> <kbd>N</kbd></button>
+          <button type="button" id="winFar" class="win far"><span id="winFarText">원거리 득점</span> <kbd>F</kbd></button>
+        </div>
+        <div class="row-actions">
+          <button type="button" id="letBtn">렛 · 다시 서브 <kbd>L</kbd></button>
+          <button type="button" id="undoBtn">마지막 취소</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <section class="panel points">
+    <div class="points-head">
+      <div>
+        <h2>편집 목록</h2>
+        <p id="summary" class="note"></p>
+        <p id="warning" class="warn" hidden></p>
+      </div>
+      <div class="source-actions">
+        <button type="button" class="primary" id="previewBtn">편집 미리보기</button>
+        <button type="button" id="saveBtn">프로젝트 저장</button>
+        <button type="button" id="loadBtn">프로젝트 열기</button>
+        <button type="button" id="copyBtn">자르기 명령 복사</button>
+        <button type="button" id="resetBtn">경기 비우기</button>
+        <input id="projectFile" type="file" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th title="이 점수를 서브하기 전 점수">전</th>
+            <th>서브</th>
+            <th>코트</th>
+            <th>화면</th>
+            <th>서브 시각</th>
+            <th>랠리</th>
+            <th>랠리종료</th>
+            <th>끝</th>
+            <th>득점</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p id="emptyRows" class="note">아직 포인트가 없습니다. 영상을 재생하며 S, R, E를 누르고 이긴 팀을 고르세요.</p>
+  </section>
+
+  <details class="panel settings">
+    <summary>경기 설정</summary>
+    <div class="settings-grid">
+      <label>이 파일의 영상
+        <select id="whichVideo"></select>
+      </label>
+      <label>첫 서브
+        <select id="firstServer">
+          <option value="near">근거리</option>
+          <option value="far">원거리</option>
+        </select>
+      </label>
+      <label>목표 점수
+        <input id="target" type="number" min="1" max="99" step="1" value="25">
+      </label>
+      <label class="check"><input id="winByTwo" type="checkbox"> 2점 차 (상한 <input id="cap" type="number" min="1" max="99" step="1" value="30">)</label>
+      <label class="check"><input id="cameraBehind" type="checkbox" checked> 카메라는 근거리 뒤 (10월 9일 영상)</label>
+      <label>근거리 이름
+        <input id="nearName" type="text" maxlength="20" value="근거리">
+      </label>
+      <label>원거리 이름
+        <input id="farName" type="text" maxlength="20" value="원거리">
+      </label>
+    </div>
+    <p class="note">출력은 포인트마다 서브, 랠리, 랠리종료만 이어 붙입니다. 셔틀을 줍는 사이는 빠집니다. 저장한 JSON은 <code>python3 export_edit.py 프로젝트.json 영상.mp4 -o 편집.mp4</code> 로 자릅니다. 나눔고딕 같은 한글 글꼴이 있으면 점수와 구간 이름이 영상에 들어가고, 없으면 같은 내용의 자막 파일이 같이 나옵니다.</p>
+  </details>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="rules.js?v=2"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
